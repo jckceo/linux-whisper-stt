@@ -140,3 +140,21 @@ def test_sounds_disabled_by_config():
 def test_status_dict():
     c, *_ = make_controller()
     assert c.status() == {"state": "idle", "last_error": ""}
+
+
+def test_wav_deleted_after_transcription(tmp_path):
+    wav = tmp_path / "rec.wav"
+    wav.write_bytes(b"data")
+
+    class OneShotRecorder:
+        def start(self):
+            pass
+
+        def stop(self):
+            return wav
+
+    c = Controller(OneShotRecorder(), FakeTranscription(), FakeOutput(),
+                   FakeIndicator(), FakeSounds(), Config())
+    c.toggle()
+    c.toggle()
+    assert not wav.exists()

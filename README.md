@@ -132,7 +132,7 @@ Unknown keys in the TOML file are silently ignored, so it is safe to add comment
 
 ### OpenAI (default)
 
-Sends audio to the OpenAI audio transcriptions endpoint. Requires an API key, stored in the system keyring under the service name `linux-whisper-stt`. Set it with `linux-whisper-stt setup` or directly with `keyring set linux-whisper-stt openai_api_key`.
+Sends audio to the OpenAI audio transcriptions endpoint. Requires an API key, stored in the system keyring under the service name `linux-whisper-stt`. Set it with `linux-whisper-stt setup` or directly with `keyring set linux-whisper-stt openai`.
 
 Available models: `gpt-4o-mini-transcribe` (default, cheapest), `gpt-4o-transcribe` (higher accuracy), `whisper-1` (legacy).
 
@@ -174,7 +174,7 @@ Check that: (a) you have logged out and back in since running `install.sh`, (b) 
 In v1 the shortcut registration calls `gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "['<path>']"` which replaces the entire custom-keybindings list with only the linux-whisper-stt entry. Any existing custom shortcuts will be unregistered. This is a known limitation of the v1 implementation (see `gnome_shortcut.py`). As a workaround, re-add your other shortcuts manually in the GNOME Settings keyboard panel after running setup.
 
 **OpenAI error: API key missing.**
-Run `linux-whisper-stt setup` and enter your API key, or run `keyring set linux-whisper-stt openai_api_key` from the terminal with the venv active.
+Run `linux-whisper-stt setup` and enter your API key, or run `keyring set linux-whisper-stt openai` from the terminal with the venv active.
 
 ---
 

@@ -82,6 +82,8 @@ class Controller:
             self._set_state(State.IDLE, result.message)
         except Exception as e:
             self._fail(str(e))
+        finally:
+            wav_path.unlink(missing_ok=True)
 
     def _fail(self, message: str) -> None:
         self.last_error = message

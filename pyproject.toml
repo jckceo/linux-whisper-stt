@@ -24,6 +24,9 @@ linux-whisper-stt = "linux_whisper_stt.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"linux_whisper_stt" = ["assets/icons/*.png", "assets/sounds/*.wav"]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]

@@ -17,19 +17,20 @@ def build_controller(config, indicator, run_async):
     from .transcribe.manager import TranscriptionManager
     from .transcribe.openai_backend import OpenAITranscriber
 
-    recorder = Recorder(device=config.audio.device, samplerate=config.audio.samplerate)
+    recorder = Recorder(
+        device=config.audio.device,
+        samplerate=config.audio.samplerate,
+        max_seconds=config.audio.max_seconds,
+    )
     openai_backend = OpenAITranscriber(
         api_key_provider=get_api_key, model=config.openai.model
     )
-    backends = {"openai": openai_backend}
-    # Local backend is added in Task 19; until then the daemon runs OpenAI-only.
-    # If 'local' is selected but absent, TranscriptionManager raises a clear error.
-    try:
-        from .transcribe.local_backend import LocalWhisperCppTranscriber
+    from .transcribe.local_backend import LocalWhisperCppTranscriber
 
-        backends["local"] = LocalWhisperCppTranscriber.from_config(config)
-    except ImportError:
-        pass
+    backends = {
+        "openai": openai_backend,
+        "local": LocalWhisperCppTranscriber.from_config(config),
+    }
     transcription = TranscriptionManager(config, backends)
     output = OutputManager(config)
     sounds = Sounds(
@@ -67,16 +68,23 @@ def run_daemon(dry_run: bool = False) -> int:
 
     # IPC: translate commands to controller calls; reply with status.
     def handle(command: str) -> dict:
-        def apply():
-            if command == "toggle":
-                controller.toggle()
-            elif command == "start":
-                controller.start()
-            elif command == "stop":
-                controller.stop()
-
         if command in ("toggle", "start", "stop"):
+            done = threading.Event()
+
+            def apply():
+                try:
+                    if command == "toggle":
+                        controller.toggle()
+                    elif command == "start":
+                        controller.start()
+                    elif command == "stop":
+                        controller.stop()
+                finally:
+                    done.set()
+                return False  # GLib one-shot idle callback
+
             GLib.idle_add(apply)
+            done.wait(timeout=5)
         return controller.status()
 
     server = IPCServer(handle)

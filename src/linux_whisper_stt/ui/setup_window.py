@@ -53,16 +53,19 @@ def run_setup() -> int:
         status = Gtk.Label(label="", xalign=0)
 
         def on_save(_btn):
-            key = key_entry.get_text().strip()
-            if key:
-                set_api_key(key)
-            config.general.engine = ["openai", "local"][engine_combo.get_selected()]
-            config.general.language = lang_entry.get_text().strip() or "auto"
-            config.shortcut.binding = shortcut_entry.get_text().strip() or "<Control><Alt>space"
-            save_config(config)
-            register_shortcut(config.shortcut.binding)
-            install_autostart()
-            status.set_text("Saved. Shortcut registered. Autostart enabled.")
+            try:
+                key = key_entry.get_text().strip()
+                if key:
+                    set_api_key(key)
+                config.general.engine = ["openai", "local"][engine_combo.get_selected()]
+                config.general.language = lang_entry.get_text().strip() or "auto"
+                config.shortcut.binding = shortcut_entry.get_text().strip() or "<Control><Alt>space"
+                save_config(config)
+                register_shortcut(config.shortcut.binding)
+                install_autostart()
+                status.set_text("Saved. Shortcut registered. Autostart enabled.")
+            except Exception as e:
+                status.set_text(f"Error: {e}")
 
         save_btn = Gtk.Button(label="Save & register shortcut")
         save_btn.connect("clicked", on_save)
