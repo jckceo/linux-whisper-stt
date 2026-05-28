@@ -4,6 +4,7 @@ import json
 import os
 import socket
 import tempfile
+import time
 from pathlib import Path
 from typing import Callable
 
@@ -54,16 +55,33 @@ class IPCServer:
         self._running = False
 
 
-def send_command(command: str, socket_path: Path | None = None) -> dict:
+def send_command(
+    command: str,
+    socket_path: Path | None = None,
+    connect_retries: int = 10,
+    retry_delay: float = 0.02,
+) -> dict:
     path = Path(socket_path or runtime_socket_path())
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    try:
-        sock.connect(str(path))
-    except (FileNotFoundError, ConnectionRefusedError) as e:
-        raise ConnectionError(f"daemon not running at {path}") from e
-    try:
-        sock.sendall((command + "\n").encode("utf-8"))
-        data = sock.recv(65536).decode("utf-8").strip()
-    finally:
-        sock.close()
-    return json.loads(data) if data else {}
+    last_err: Exception | None = None
+    for _ in range(connect_retries):
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            sock.connect(str(path))
+        except FileNotFoundError as e:
+            # No socket file at all -> the daemon is not running. Fail fast.
+            sock.close()
+            raise ConnectionError(f"daemon not running at {path}") from e
+        except ConnectionRefusedError as e:
+            # Socket exists but not yet accepting (daemon still starting, or the
+            # bind-before-listen window). Retry briefly before giving up.
+            last_err = e
+            sock.close()
+            time.sleep(retry_delay)
+            continue
+        try:
+            sock.sendall((command + "\n").encode("utf-8"))
+            data = sock.recv(65536).decode("utf-8").strip()
+        finally:
+            sock.close()
+        return json.loads(data) if data else {}
+    raise ConnectionError(f"daemon not running at {path}") from last_err
