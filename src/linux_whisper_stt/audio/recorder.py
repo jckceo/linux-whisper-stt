@@ -7,39 +7,44 @@ import tempfile
 from pathlib import Path
 
 
-def build_ffmpeg_command(
-    device: str, samplerate: int, out_path: Path, max_seconds: int | None = None
+def build_record_command(
+    samplerate: int,
+    channels: int,
+    out_path: Path,
+    max_seconds: int | None = None,
+    device: str = "default",
 ) -> list[str]:
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-f", "pulse",
-        "-i", device,
-        "-ac", "1",
-        "-ar", str(samplerate),
-    ]
-    if max_seconds:
-        cmd += ["-t", str(max_seconds)]
+    cmd = ["pw-record", "--rate", str(samplerate), "--channels", str(channels)]
+    if device and device != "default":
+        cmd += ["--target", device]
     cmd.append(str(out_path))
+    if max_seconds:
+        # Cap the capture length. `timeout` sends SIGTERM at the limit and
+        # pw-record finalizes the WAV; a SIGINT sent for an early stop is
+        # forwarded to pw-record too.
+        cmd = ["timeout", str(max_seconds), *cmd]
     return cmd
 
 
 class Recorder:
-    """Records the microphone to a temp WAV using ffmpeg (PipeWire/Pulse).
+    """Records the microphone to a temp WAV using pw-record (PipeWire-native).
 
-    start() spawns ffmpeg; stop() asks it to finalize the file gracefully and
-    returns the WAV path. max_seconds (if set) caps the captured duration via
-    ffmpeg's -t flag so a forgotten recording cannot grow without bound.
+    pw-record is used instead of ffmpeg because the common Ubuntu ffmpeg build
+    lacks the PulseAudio input device ("Unknown input format: 'pulse'"), while
+    pw-record talks to PipeWire directly and finalizes a valid 16-bit WAV when
+    stopped with a signal.
     """
 
     def __init__(
         self,
         device: str = "default",
         samplerate: int = 16000,
+        channels: int = 1,
         max_seconds: int | None = None,
     ):
         self.device = device
         self.samplerate = samplerate
+        self.channels = channels
         self.max_seconds = max_seconds
         self._proc: subprocess.Popen | None = None
         self._out_path: Path | None = None
@@ -47,27 +52,24 @@ class Recorder:
     def start(self) -> None:
         fd, name = tempfile.mkstemp(suffix=".wav", prefix="lws-")
         os.close(fd)
-        Path(name).unlink(missing_ok=True)  # ffmpeg will create it
+        Path(name).unlink(missing_ok=True)  # pw-record will create it
         self._out_path = Path(name)
-        cmd = build_ffmpeg_command(
-            self.device, self.samplerate, self._out_path, self.max_seconds
+        cmd = build_record_command(
+            self.samplerate, self.channels, self._out_path, self.max_seconds, self.device
         )
-        # ffmpeg reads 'q' on stdin to stop and finalize the file cleanly.
         self._proc = subprocess.Popen(
-            cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
 
     def stop(self) -> Path:
         if self._proc is None or self._out_path is None:
             raise RuntimeError("Recorder.stop() called before start()")
         proc, out = self._proc, self._out_path
+        proc.send_signal(signal.SIGINT)  # pw-record finalizes the WAV on SIGINT
         try:
-            proc.communicate(input=b"q", timeout=5)
+            proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
-            proc.send_signal(signal.SIGINT)
+            proc.terminate()
             try:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
