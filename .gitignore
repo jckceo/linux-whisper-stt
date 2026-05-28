@@ -5,3 +5,7 @@ __pycache__/
 .pytest_cache/
 dist/
 build/
+
+# Local Claude Code config and internal planning docs (kept out of the repo)
+.claude/
+docs/
