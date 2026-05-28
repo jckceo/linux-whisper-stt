@@ -11,6 +11,6 @@ def test_install_writes_desktop_file(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     p = install_autostart()
     content = p.read_text()
-    assert "Exec=linux-whisper-stt daemon" in content
+    assert "linux-whisper-stt daemon" in content  # Exec uses the absolute path
     assert "[Desktop Entry]" in content
     assert "X-GNOME-Autostart-enabled=true" in content

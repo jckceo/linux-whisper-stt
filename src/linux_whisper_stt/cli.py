@@ -2,10 +2,22 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from .ipc import send_command
 
 REMOTE_COMMANDS = {"toggle", "start", "stop", "status"}
+
+
+def entrypoint() -> str:
+    """Absolute path to the installed `linux-whisper-stt` console script.
+
+    GNOME custom keybindings and the autostart .desktop file run without the
+    venv's bin/ directory on PATH, so they must invoke this script by its
+    absolute path. Falls back to the bare name if it can't be located.
+    """
+    candidate = Path(sys.executable).with_name("linux-whisper-stt")
+    return str(candidate) if candidate.exists() else "linux-whisper-stt"
 
 
 def _run_remote(command: str) -> int:
