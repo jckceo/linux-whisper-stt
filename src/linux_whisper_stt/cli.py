@@ -26,12 +26,15 @@ def _run_remote(command: str) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="linux-whisper-stt")
     sub = parser.add_subparsers(dest="command")
-    for name in ("daemon", "toggle", "start", "stop", "status", "setup"):
+    for name in ("toggle", "start", "stop", "status", "setup"):
         sub.add_parser(name)
+    daemon_p = sub.add_parser("daemon")
+    daemon_p.add_argument("--dry-run", action="store_true")
 
     try:
         args, _ = parser.parse_known_args(argv)
     except SystemExit:
+        # argparse raises SystemExit(2) for an unknown subcommand or --help
         return 2
     command = args.command
 
@@ -40,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
     if command == "daemon":
         from .daemon import run_daemon
 
-        return run_daemon()
+        return run_daemon(dry_run=getattr(args, "dry_run", False))
     if command == "setup":
         from .ui.setup_window import run_setup
 
