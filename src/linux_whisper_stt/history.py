@@ -113,6 +113,8 @@ class HistoryStore:
         return event
 
     def update_event(self, event: HistoryEvent) -> None:
+        if event.legacy:
+            raise ValueError("legacy history events are read-only")
         if not self.config.history.enabled or event.status == "disabled":
             return
         event_dir = self.directory() / event.id
@@ -149,14 +151,14 @@ class HistoryStore:
         if not directory.exists():
             return []
 
-        events: list[tuple[float, HistoryEvent]] = []
+        events: list[tuple[datetime, HistoryEvent]] = []
         for child in directory.iterdir():
             if child.is_dir() and (child / "event.json").exists():
                 try:
                     event = self.load_event(child.name)
                 except (OSError, json.JSONDecodeError, TypeError, ValueError):
                     continue
-                events.append(((child / "event.json").stat().st_mtime, event))
+                events.append((self._sort_time(event), event))
 
         for wav_path in directory.glob("*.wav"):
             txt_path = wav_path.with_suffix(".txt")
@@ -179,8 +181,7 @@ class HistoryStore:
                 legacy=True,
                 transcript_text=txt_path.read_text(encoding="utf-8"),
             )
-            sort_time = max(wav_path.stat().st_mtime, txt_path.stat().st_mtime)
-            events.append((sort_time, event))
+            events.append((self._sort_time(event), event))
 
         return [event for _, event in sorted(events, key=lambda item: item[0], reverse=True)]
 
@@ -209,11 +210,18 @@ class HistoryStore:
         )
         if stamp is not None:
             self.delete_event(event.id)
-            event.id = stamp
+            event.id = self._new_event_id(stamp)
             self.update_event(event)
         completed = self.complete_event(event.id, wav_path, text)
         return Path(completed.audio_path) if completed.audio_path else None
 
-    def _new_event_id(self) -> str:
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    def _new_event_id(self, stamp: str | None = None) -> str:
+        if stamp is None:
+            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         return f"{stamp}-{uuid.uuid4().hex[:8]}"
+
+    def _sort_time(self, event: HistoryEvent) -> datetime:
+        try:
+            return datetime.fromisoformat(event.created_at)
+        except ValueError:
+            return datetime.min

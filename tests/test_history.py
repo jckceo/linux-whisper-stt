@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from linux_whisper_stt.config import Config
 from linux_whisper_stt.controller import Controller
 from linux_whisper_stt.history import HistoryEvent, HistoryStore
@@ -11,11 +13,11 @@ def test_save_writes_v2_microphone_event(tmp_path):
     wav = tmp_path / "rec.wav"
     wav.write_bytes(b"RIFFDATA")
     dest = HistoryStore(cfg).save(wav, "ciao mondo", stamp="20260529-120000")
-    assert dest == tmp_path / "hist" / "20260529-120000" / "audio.wav"
+    assert dest.parent.name.startswith("20260529-120000-")
+    assert len(dest.parent.name.removeprefix("20260529-120000-")) == 8
+    assert dest == tmp_path / "hist" / dest.parent.name / "audio.wav"
     assert dest.read_bytes() == b"RIFFDATA"
-    assert (
-        tmp_path / "hist" / "20260529-120000" / "transcript.txt"
-    ).read_text() == "ciao mondo"
+    assert (dest.parent / "transcript.txt").read_text() == "ciao mondo"
 
 
 def test_disabled_does_nothing(tmp_path):
@@ -163,3 +165,52 @@ def test_delete_event_removes_v2_directory_but_not_original_file(tmp_path):
 
     assert original.exists()
     assert not (tmp_path / "hist" / event.id).exists()
+
+
+def test_update_event_rejects_legacy_events(tmp_path):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist")
+    store = HistoryStore(cfg)
+    legacy_wav = tmp_path / "hist" / "20260529-120000.wav"
+    legacy_wav.parent.mkdir(parents=True)
+    legacy_wav.write_bytes(b"legacy")
+    (tmp_path / "hist" / "20260529-120000.txt").write_text(
+        "legacy text", encoding="utf-8"
+    )
+
+    legacy_event = store.list_events()[0]
+
+    with pytest.raises(ValueError, match="legacy history events are read-only"):
+        store.update_event(legacy_event)
+    assert not (tmp_path / "hist" / "20260529-120000" / "event.json").exists()
+
+
+def test_list_events_sorts_by_created_at_not_metadata_mtime(tmp_path):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist")
+    store = HistoryStore(cfg)
+
+    older = store.create_event(
+        source_type="microphone",
+        created_by="dictation",
+        original_path=None,
+        engine="openai",
+        model="gpt-4o-mini-transcribe",
+        language="auto",
+    )
+    newer = store.create_event(
+        source_type="audio_file",
+        created_by="tray",
+        original_path=Path("/home/me/newer.wav"),
+        engine="openai",
+        model="gpt-4o-mini-transcribe",
+        language="auto",
+    )
+    newer.created_at = "2026-05-29T12:00:00"
+    store.update_event(newer)
+    older.created_at = "2026-05-29T11:00:00"
+    store.update_event(older)
+
+    events = store.list_events()
+
+    assert [event.id for event in events[:2]] == [newer.id, older.id]
