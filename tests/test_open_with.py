@@ -55,6 +55,15 @@ def test_desktop_entry_text_quotes_entrypoint_with_spaces():
     ) in entry
 
 
+def test_desktop_entry_text_escapes_backslash_inside_quoted_entrypoint():
+    entry = desktop_entry_text("/tmp/My Projects/a\\b/linux-whisper-stt")
+
+    assert (
+        'Exec="/tmp/My Projects/a\\\\\\\\b/linux-whisper-stt" '
+        "transcribe-file %f --created-by open_with\n"
+    ) in entry
+
+
 def test_install_open_with_writes_desktop_file(tmp_path):
     path = install_open_with("linux-whisper-stt", applications_dir=tmp_path)
 

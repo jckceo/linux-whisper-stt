@@ -45,15 +45,15 @@ def _applications_dir() -> Path:
 
 
 def _quote_exec_arg(arg: str) -> str:
-    escaped = (
-        arg.replace("\\", "\\\\")
-        .replace('"', '\\"')
-        .replace("$", "\\$")
-        .replace("`", "\\`")
-        .replace("%", "%%")
-    )
     reserved = set(' \t\n"\'\\><~|&;$*?#()`')
+    escaped = arg.replace("%", "%%")
     if any(char in reserved for char in arg):
+        escaped = (
+            escaped.replace("\\", "\\\\\\\\")
+            .replace('"', '\\"')
+            .replace("$", "\\$")
+            .replace("`", "\\`")
+        )
         return f'"{escaped}"'
     return escaped
 
