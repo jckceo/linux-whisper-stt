@@ -270,6 +270,8 @@ Then open Settings and save the shortcut again:
 .venv/bin/linux-whisper-stt setup
 ```
 
+Shortcut registration preserves existing GNOME custom shortcuts and only adds or updates the linux-whisper-stt entry.
+
 If `Ctrl+Alt+Space` is already used by the desktop, change it to another binding such as `<Control><Alt>w`.
 
 ### Daemon is not running
