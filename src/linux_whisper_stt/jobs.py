@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator, Mapping
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,6 +9,13 @@ from tempfile import TemporaryDirectory
 from typing import Protocol
 
 from linux_whisper_stt.history import HistoryEvent, HistoryStore
+from linux_whisper_stt.media.chunking import (
+    OPENAI_TARGET_UPLOAD_BYTES,
+    estimate_mp3_bytes,
+    export_chunks,
+    merge_transcripts,
+    plan_chunks,
+)
 from linux_whisper_stt.media.prepare import PreparedMedia, prepare_media
 from linux_whisper_stt.output.clipboard import copy_to_clipboard
 
@@ -24,6 +32,37 @@ class JobProgress:
     detail: str
 
 
+def build_openai_chunk_paths(
+    audio_path: Path,
+    duration_seconds: float | None,
+    event_dir: Path,
+) -> list[Path]:
+    if not duration_seconds:
+        return [audio_path]
+
+    estimated_bytes = estimate_mp3_bytes(duration_seconds)
+    if estimated_bytes <= OPENAI_TARGET_UPLOAD_BYTES:
+        return [audio_path]
+
+    chunks = plan_chunks(duration_seconds, estimated_bytes)
+    return export_chunks(audio_path, event_dir / "chunks", chunks)
+
+
+def transcribe_chunks(
+    backend: TranscriptionBackend,
+    chunk_paths: list[Path],
+    language: str,
+    max_workers: int = 2,
+    executor_cls=ThreadPoolExecutor,
+) -> list[str]:
+    def transcribe(path: Path) -> str:
+        return backend.transcribe(path, language)
+
+    with executor_cls(max_workers=max_workers) as executor:
+        futures = [executor.submit(transcribe, path) for path in chunk_paths]
+        return [future.result() for future in futures]
+
+
 class TranscriptionJobRunner:
     def __init__(
         self,
@@ -34,6 +73,9 @@ class TranscriptionJobRunner:
         copy_fn: Callable[[str], None] = copy_to_clipboard,
         popup_fn: Callable[[HistoryEvent], None] = lambda event: None,
         progress_fn: Callable[[JobProgress], None] = lambda progress: None,
+        chunk_paths_fn: Callable[
+            [Path, float | None, Path], list[Path]
+        ] = build_openai_chunk_paths,
     ):
         self.config = config
         self.history = history
@@ -42,6 +84,7 @@ class TranscriptionJobRunner:
         self.copy_fn = copy_fn
         self.popup_fn = popup_fn
         self.progress_fn = progress_fn
+        self.chunk_paths_fn = chunk_paths_fn
 
     def run_file_job(self, source_path: Path | str, created_by: str) -> HistoryEvent:
         source_path = Path(source_path)
@@ -60,11 +103,30 @@ class TranscriptionJobRunner:
                 event.source_type = prepared.source_type
                 self.history.update_event(event)
 
-                self._progress("transcribing", event.id, "Transcribing file")
-                transcript = self._backend().transcribe(
-                    prepared.audio_path, self.config.general.language
-                )
-                final_text = transcript.strip()
+                if self.config.general.engine == "openai":
+                    chunk_paths = self.chunk_paths_fn(
+                        prepared.audio_path,
+                        prepared.duration_seconds,
+                        event_dir,
+                    )
+                    self._progress(
+                        "transcribing",
+                        event.id,
+                        f"Transcribing file 1/{len(chunk_paths)}",
+                    )
+                    parts = transcribe_chunks(
+                        self._backend(),
+                        chunk_paths,
+                        self.config.general.language,
+                        max_workers=2,
+                    )
+                    final_text = merge_transcripts(parts)
+                else:
+                    self._progress("transcribing", event.id, "Transcribing file")
+                    transcript = self._backend().transcribe(
+                        prepared.audio_path, self.config.general.language
+                    )
+                    final_text = transcript.strip()
 
                 self._progress("merging", event.id, "Saving transcript")
                 event = self._complete_file_event(event, prepared, final_text)

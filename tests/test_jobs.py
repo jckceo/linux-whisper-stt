@@ -288,3 +288,122 @@ def test_disabled_history_file_job_transcribes_without_history_files(tmp_path):
     assert copied == ["disabled text"]
     assert popups == [event]
     assert not Path(cfg.history.dir).exists()
+
+
+def test_openai_file_job_chunks_large_audio_and_merges_in_order(tmp_path):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist")
+    cfg.general.engine = "openai"
+    source = tmp_path / "long.mp3"
+    source.write_bytes(b"source")
+    prepared_audio = tmp_path / "prepared.wav"
+    prepared_audio.write_bytes(b"RIFF")
+    chunk_dir = tmp_path / "chunks"
+    chunk_paths = [chunk_dir / "chunk-000.mp3", chunk_dir / "chunk-001.mp3"]
+    for chunk_path in chunk_paths:
+        chunk_path.parent.mkdir(parents=True, exist_ok=True)
+        chunk_path.write_bytes(b"chunk")
+
+    class ChunkBackend:
+        def __init__(self):
+            self.calls = []
+
+        def transcribe(self, path, language):
+            self.calls.append(Path(path).name)
+            return {"chunk-000.mp3": "first", "chunk-001.mp3": "second"}[
+                Path(path).name
+            ]
+
+    backend = ChunkBackend()
+
+    runner = TranscriptionJobRunner(
+        config=cfg,
+        history=HistoryStore(cfg),
+        backends={"openai": backend},
+        prepare_fn=lambda path, event_dir: PreparedMedia(
+            "audio_file", prepared_audio, 600.0
+        ),
+        copy_fn=lambda text: None,
+        popup_fn=lambda event: None,
+        progress_fn=lambda progress: None,
+        chunk_paths_fn=lambda audio_path, duration_seconds, event_dir: chunk_paths,
+    )
+
+    event = runner.run_file_job(source, created_by="cli")
+
+    assert backend.calls == ["chunk-000.mp3", "chunk-001.mp3"]
+    assert event.transcript_text == "first\n\nsecond"
+
+
+def test_transcribe_chunks_uses_limited_executor():
+    from linux_whisper_stt.jobs import transcribe_chunks
+
+    class Future:
+        def __init__(self, value):
+            self.value = value
+
+        def result(self):
+            return self.value
+
+    class FakeExecutor:
+        seen_max_workers = None
+
+        def __init__(self, max_workers):
+            FakeExecutor.seen_max_workers = max_workers
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def submit(self, fn, path):
+            return Future(fn(path))
+
+    class Backend:
+        def transcribe(self, path, language):
+            return f"{Path(path).name}:{language}"
+
+    parts = transcribe_chunks(
+        Backend(),
+        [Path("a.mp3"), Path("b.mp3")],
+        "it",
+        max_workers=2,
+        executor_cls=FakeExecutor,
+    )
+
+    assert FakeExecutor.seen_max_workers == 2
+    assert parts == ["a.mp3:it", "b.mp3:it"]
+
+
+def test_build_openai_chunk_paths_uses_estimated_mp3_bytes_for_split(
+    tmp_path, monkeypatch
+):
+    from linux_whisper_stt import jobs
+
+    audio_path = tmp_path / "tiny-input.mp3"
+    audio_path.write_bytes(b"x")
+    exported = [
+        tmp_path / "event" / "chunks" / "chunk-000.mp3",
+        tmp_path / "event" / "chunks" / "chunk-001.mp3",
+    ]
+    captured = {}
+
+    def fake_export_chunks(source, chunk_dir, chunks):
+        captured["source"] = source
+        captured["chunk_dir"] = chunk_dir
+        captured["chunks"] = chunks
+        return exported
+
+    monkeypatch.setattr(jobs, "export_chunks", fake_export_chunks)
+
+    chunk_paths = jobs.build_openai_chunk_paths(
+        audio_path,
+        duration_seconds=7200,
+        event_dir=tmp_path / "event",
+    )
+
+    assert chunk_paths == exported
+    assert captured["source"] == audio_path
+    assert captured["chunk_dir"] == tmp_path / "event" / "chunks"
+    assert len(captured["chunks"]) > 1
