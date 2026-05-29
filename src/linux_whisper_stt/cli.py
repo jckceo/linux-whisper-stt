@@ -52,11 +52,15 @@ def _run_transcribe_file(path: str) -> int:
         print(f"error: file does not exist: {media_path}")
         return 1
 
-    payload = {"command": "transcribe-file", "path": str(media_path)}
+    payload = {"command": "transcribe-file", "path": str(media_path.resolve())}
     try:
         resp = send_command(payload)
     except ConnectionError:
-        start_daemon_background()
+        try:
+            start_daemon_background()
+        except OSError as e:
+            print(f"error: failed to start daemon: {e}")
+            return 1
         time.sleep(1.0)
         try:
             resp = send_command(payload, connect_retries=50, retry_delay=0.1)

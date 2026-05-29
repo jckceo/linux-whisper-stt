@@ -73,33 +73,9 @@ def build_controller(config, indicator, run_async):
     )
 
 
-def run_daemon(dry_run: bool = False) -> int:
-    import gi
-
-    gi.require_version("Gtk", "3.0")
-    from gi.repository import GLib, Gtk
-
-    config = load_config()
-
-    # Run blocking work (transcription) off the GTK main thread.
-    def run_async(fn):
-        threading.Thread(target=fn, daemon=True).start()
-
-    if dry_run:
-        from .tray.indicator import PrintIndicator
-
-        indicator = PrintIndicator()
-    else:
-        from .tray.indicator import TrayIndicator
-
-        indicator = TrayIndicator()
-
-    controller = build_controller(config, indicator, run_async)
-    if not dry_run:
-        indicator.bind_controller(controller)
-
-    # IPC: translate commands to controller calls; reply with status.
+def make_ipc_handler(controller, idle_add):
     def handle(data: str) -> dict:
+        structured = data.strip().startswith("{")
         payload = parse_message(data)
         command = payload["command"]
         if command in ("toggle", "start", "stop"):
@@ -117,7 +93,7 @@ def run_daemon(dry_run: bool = False) -> int:
                     done.set()
                 return False  # GLib one-shot idle callback
 
-            GLib.idle_add(apply)
+            idle_add(apply)
             done.wait(timeout=5)
         elif command == "transcribe-file":
             done = threading.Event()
@@ -143,7 +119,7 @@ def run_daemon(dry_run: bool = False) -> int:
                     done.set()
                 return False
 
-            GLib.idle_add(apply)
+            idle_add(apply)
             if not done.wait(timeout=5):
                 return {
                     "accepted": False,
@@ -151,9 +127,39 @@ def run_daemon(dry_run: bool = False) -> int:
                     "error": "request timed out",
                 }
             return result
+        elif structured and command != "status":
+            return {"error": f"unknown command: {command}"}
         return controller.status()
 
-    server = IPCServer(handle)
+    return handle
+
+
+def run_daemon(dry_run: bool = False) -> int:
+    import gi
+
+    gi.require_version("Gtk", "3.0")
+    from gi.repository import GLib, Gtk
+
+    config = load_config()
+
+    # Run blocking work (transcription) off the GTK main thread.
+    def run_async(fn):
+        threading.Thread(target=fn, daemon=True).start()
+
+    if dry_run:
+        from .tray.indicator import PrintIndicator
+
+        indicator = PrintIndicator()
+    else:
+        from .tray.indicator import TrayIndicator
+
+        indicator = TrayIndicator()
+
+    controller = build_controller(config, indicator, run_async)
+    if not dry_run:
+        indicator.bind_controller(controller)
+
+    server = IPCServer(make_ipc_handler(controller, GLib.idle_add))
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
     try:

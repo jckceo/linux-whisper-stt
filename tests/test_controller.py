@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
 from linux_whisper_stt.config import Config
 from linux_whisper_stt.controller import Controller, State
@@ -173,3 +174,33 @@ def test_transcribe_file_rejects_when_busy(tmp_path):
 
     assert result["accepted"] is False
     assert "busy" in result["error"].lower()
+
+
+def test_transcribe_file_success_returns_idle_with_history_detail(tmp_path):
+    class Jobs:
+        def run_file_job(self, path, created_by):
+            return SimpleNamespace(status="completed", error="")
+
+    c, *_, indicator, _ = make_controller()
+    c.file_jobs = Jobs()
+
+    result = c.transcribe_file(tmp_path / "a.mp3", created_by="tray")
+
+    assert result == {"accepted": True, "state": "transcribing"}
+    assert c.state == State.IDLE
+    assert indicator.states[-1] == (State.IDLE, "Saved to history")
+
+
+def test_transcribe_file_failed_event_sets_error_state(tmp_path):
+    class Jobs:
+        def run_file_job(self, path, created_by):
+            return SimpleNamespace(status="failed", error="decode failed")
+
+    c, *_ = make_controller()
+    c.file_jobs = Jobs()
+
+    result = c.transcribe_file(tmp_path / "a.mp3", created_by="tray")
+
+    assert result == {"accepted": True, "state": "transcribing"}
+    assert c.state == State.ERROR
+    assert c.last_error == "decode failed"

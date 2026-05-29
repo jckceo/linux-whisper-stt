@@ -1,6 +1,6 @@
 from linux_whisper_stt.config import Config
 from linux_whisper_stt.controller import State
-from linux_whisper_stt.daemon import build_controller
+from linux_whisper_stt.daemon import build_controller, make_ipc_handler
 from linux_whisper_stt.jobs import TranscriptionJobRunner
 
 
@@ -61,3 +61,13 @@ def test_build_controller_wires_file_job_runner(monkeypatch):
     assert isinstance(controller.file_jobs, TranscriptionJobRunner)
     controller.file_jobs.progress_fn(type("Progress", (), {"state": "transcribing"})())
     assert controller.indicator.states[-1][0] == State.TRANSCRIBING
+
+
+def test_structured_unknown_command_returns_error():
+    class Controller:
+        def status(self):
+            return {"state": "idle", "last_error": ""}
+
+    handler = make_ipc_handler(Controller(), lambda fn: fn())
+
+    assert handler('{"command": "bogus"}') == {"error": "unknown command: bogus"}

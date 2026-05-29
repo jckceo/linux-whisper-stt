@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import json
 import os
 import socket
@@ -31,6 +32,29 @@ def parse_message(data: str) -> dict[str, Any]:
     return {"command": stripped}
 
 
+def _prepare_socket_path(socket_path: Path) -> None:
+    if not socket_path.exists():
+        return
+
+    probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        probe.settimeout(0.1)
+        probe.connect(str(socket_path))
+    except FileNotFoundError:
+        return
+    except ConnectionRefusedError:
+        socket_path.unlink(missing_ok=True)
+    except OSError as e:
+        if e.errno in (errno.ENOENT, errno.ECONNREFUSED, errno.ENOTSOCK, errno.EINVAL):
+            socket_path.unlink(missing_ok=True)
+            return
+        raise RuntimeError(f"cannot inspect IPC socket at {socket_path}: {e}") from e
+    else:
+        raise RuntimeError(f"daemon already running at {socket_path}")
+    finally:
+        probe.close()
+
+
 class IPCServer:
     """Listens on a Unix socket. Each connection sends one command line;
     the handler returns a dict that is sent back as one JSON line."""
@@ -42,8 +66,7 @@ class IPCServer:
         self._running = False
 
     def serve_forever(self) -> None:
-        if self.socket_path.exists():
-            self.socket_path.unlink()
+        _prepare_socket_path(self.socket_path)
         self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self._sock.bind(str(self.socket_path))
         self._sock.listen(8)
@@ -84,7 +107,7 @@ def send_command(
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
             sock.connect(str(path))
-        except FileNotFoundError as e:
+        except OSError as e:
             # Daemon startup can race socket creation; retry when requested.
             last_err = e
             sock.close()
@@ -92,19 +115,20 @@ def send_command(
                 time.sleep(retry_delay)
                 continue
             break
-        except ConnectionRefusedError as e:
-            # Socket exists but not yet accepting (daemon still starting, or the
-            # bind-before-listen window). Retry briefly before giving up.
-            last_err = e
-            sock.close()
-            if attempt < connect_retries - 1:
-                time.sleep(retry_delay)
-                continue
-            break
         try:
-            sock.sendall((encode_message(command) + "\n").encode("utf-8"))
-            data = sock.recv(65536).decode("utf-8").strip()
+            try:
+                sock.sendall((encode_message(command) + "\n").encode("utf-8"))
+                data = sock.recv(65536).decode("utf-8").strip()
+            except OSError as e:
+                raise ConnectionError(
+                    f"IPC communication failed with daemon at {path}: {e}"
+                ) from e
+            try:
+                return json.loads(data) if data else {}
+            except json.JSONDecodeError as e:
+                raise ConnectionError(
+                    f"invalid response from daemon at {path}: {e}"
+                ) from e
         finally:
             sock.close()
-        return json.loads(data) if data else {}
     raise ConnectionError(f"daemon not running at {path}") from last_err

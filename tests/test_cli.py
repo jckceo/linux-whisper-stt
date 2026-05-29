@@ -114,6 +114,22 @@ def test_transcribe_file_sends_structured_ipc(monkeypatch, tmp_path, capsys):
     assert "accepted" in capsys.readouterr().out
 
 
+def test_transcribe_file_sends_resolved_ipc_path(monkeypatch, tmp_path):
+    sent = []
+    media = tmp_path / "clip.mp3"
+    media.write_bytes(b"x")
+
+    def fake_send_command(payload):
+        sent.append(payload)
+        return {"accepted": True, "state": "transcribing"}
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("linux_whisper_stt.cli.send_command", fake_send_command)
+
+    assert cli.main(["transcribe-file", "clip.mp3"]) == 0
+    assert sent == [{"command": "transcribe-file", "path": str(media.resolve())}]
+
+
 def test_transcribe_file_starts_daemon_then_retries(monkeypatch, tmp_path, capsys):
     calls = []
     media = tmp_path / "clip.mp3"
@@ -140,3 +156,23 @@ def test_transcribe_file_starts_daemon_then_retries(monkeypatch, tmp_path, capsy
         {"connect_retries": 50, "retry_delay": 0.1},
     )
     assert "accepted" in capsys.readouterr().out
+
+
+def test_transcribe_file_reports_daemon_start_failure(monkeypatch, tmp_path, capsys):
+    media = tmp_path / "clip.mp3"
+    media.write_bytes(b"x")
+
+    def fake_send_command(payload, **kwargs):
+        raise ConnectionError("missing socket")
+
+    def fake_start_daemon_background():
+        raise OSError("permission denied")
+
+    monkeypatch.setattr("linux_whisper_stt.cli.send_command", fake_send_command)
+    monkeypatch.setattr(
+        "linux_whisper_stt.cli.start_daemon_background",
+        fake_start_daemon_background,
+    )
+
+    assert cli.main(["transcribe-file", str(media)]) == 1
+    assert "failed to start daemon: permission denied" in capsys.readouterr().out
