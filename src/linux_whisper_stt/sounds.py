@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 
 
-def play(path: str, runner=subprocess.run) -> None:
+def play(path: str, runner=subprocess.run, which=shutil.which) -> None:
     # check=False: a missing audio server should never break dictation.
-    try:
-        runner(["paplay", str(path)], check=False)
-    except FileNotFoundError:
-        pass
+    for player in ("paplay", "pw-play"):
+        binary = which(player)
+        if binary is None:
+            continue
+        try:
+            result = runner([binary, str(path)], check=False)
+        except FileNotFoundError:
+            continue
+        if getattr(result, "returncode", 0) == 0:
+            return
 
 
 class Sounds:

@@ -4,7 +4,7 @@
 
 Linux desktop dictation with a global shortcut, tray indicator, OpenAI or local Whisper transcription, and Wayland-friendly auto-paste.
 
-`linux-whisper-stt` is a SuperWhisper-style tool for GNOME. Press a shortcut once to start recording, press it again to stop, and the app transcribes your speech and types the result into the active window.
+`linux-whisper-stt` is a SuperWhisper-style tool for GNOME. Press a shortcut once to start recording, press it again to stop, and the app transcribes your speech, copies it to the clipboard, and can paste it into the active window.
 
 ## Features
 
@@ -12,7 +12,7 @@ Linux desktop dictation with a global shortcut, tray indicator, OpenAI or local 
 - AppIndicator tray icon with state feedback and a Settings window
 - OpenAI transcription via `gpt-4o-mini-transcribe`, `gpt-4o-transcribe`, or `whisper-1`
 - Optional offline transcription through a locally built `whisper.cpp`
-- Auto-paste on Wayland through `ydotool type --file -`
+- Auto-paste on Wayland through clipboard paste via `ydotool`
 - Clipboard fallback through `wl-copy`
 - Autostart at login through a desktop entry
 - Per-dictation history with the recorded WAV and transcribed text
@@ -74,9 +74,9 @@ Then open Settings:
 ```
 
 Settings lets you save your OpenAI API key, choose the transcription engine, set
-the language, register the GNOME shortcut, and control the `Start on startup`
-switch. Turning it on writes the desktop autostart entry; turning it off removes
-that entry.
+the language, register the GNOME shortcut, toggle `Auto-paste`, and control the
+`Start on startup` switch. Turning startup on writes the desktop autostart
+entry; turning it off removes that entry.
 
 ## Start The App
 
@@ -135,7 +135,7 @@ Workflow:
 3. Press the shortcut again to stop.
 4. The tray icon switches to transcribing.
 5. The result is copied to the clipboard.
-6. If auto-paste is enabled, `ydotool` types the text into the active app.
+6. If auto-paste is enabled, `ydotool` presses the paste shortcut in the active app.
 
 ## Tray Menu
 
@@ -250,10 +250,13 @@ The local engine invokes `whisper-cli` with the configured model and language.
 Auto-paste uses:
 
 ```bash
-ydotool type --file -
+wl-copy
+ydotool key 29:1 47:1 47:0 29:0
 ```
 
-The transcribed text is passed on stdin. This avoids the broken `Ctrl+V` simulation path on some Wayland sessions.
+The transcribed text is copied to the clipboard first, then `ydotool` sends the
+paste shortcut after a short delay. It does not type transcript characters
+directly, which avoids keyboard-layout and held-modifier issues.
 
 Requirements:
 
@@ -262,7 +265,7 @@ Requirements:
 - you logged out and back in after installation
 - `paste_mode = "auto"`
 
-Disable auto-paste and use clipboard only:
+Disable auto-paste and use clipboard only from Settings, or set:
 
 ```toml
 [general]
@@ -335,6 +338,8 @@ ls -l /dev/uinput
 ```
 
 If group membership changed during install, log out and back in.
+Also check that Settings has `Auto-paste` enabled. If it is disabled, the text
+will still be copied to the clipboard.
 
 ### Tray is red or stuck
 

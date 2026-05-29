@@ -1,6 +1,7 @@
 from linux_whisper_stt.ui.setup_window import (
     apply_startup_preference,
     build_window_shell,
+    paste_mode_from_auto_paste,
     present_existing_window,
 )
 
@@ -92,6 +93,11 @@ def test_apply_startup_preference_uses_systemd_when_service_is_installed():
 
     assert mode == "systemd"
     assert calls == []
+
+
+def test_paste_mode_from_auto_paste():
+    assert paste_mode_from_auto_paste(True) == "auto"
+    assert paste_mode_from_auto_paste(False) == "clipboard_only"
 
 
 def test_build_window_shell_adds_close_button():

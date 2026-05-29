@@ -9,8 +9,9 @@ def test_available_false_when_missing():
     assert paste.ydotool_available(which=lambda name: None) is False
 
 
-def test_paste_types_text_with_ydotool_stdin():
+def test_paste_uses_delayed_clipboard_paste_shortcut():
     calls = []
+    sleeps = []
 
     def fake_runner(cmd, **kwargs):
         calls.append((cmd, kwargs))
@@ -20,9 +21,16 @@ def test_paste_types_text_with_ydotool_stdin():
 
         return R()
 
-    paste.paste_via_ydotool("ciao", runner=fake_runner)
-    cmd, kwargs = calls[0]
-    assert cmd == ["ydotool", "type", "--file", "-"]
-    assert kwargs["input"] == "ciao"
-    assert kwargs["text"] is True
-    assert kwargs["check"] is True
+    paste.paste_via_ydotool("ciao", runner=fake_runner, sleep_fn=sleeps.append)
+
+    assert sleeps == [0.15]
+    assert calls == [
+        (
+            ["ydotool", "key", "29:0", "56:0", "97:0", "100:0"],
+            {"check": False},
+        ),
+        (
+            ["ydotool", "key", "29:1", "47:1", "47:0", "29:0"],
+            {"check": True},
+        ),
+    ]

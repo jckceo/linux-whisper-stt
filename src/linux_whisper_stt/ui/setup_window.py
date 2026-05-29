@@ -46,6 +46,10 @@ def apply_startup_preference(
     return "disabled"
 
 
+def paste_mode_from_auto_paste(enabled: bool) -> str:
+    return "auto" if enabled else "clipboard_only"
+
+
 def run_setup() -> int:
     import gi
 
@@ -101,6 +105,15 @@ def run_setup() -> int:
         shortcut_entry = Gtk.Entry(text=config.shortcut.binding)
         box.append(shortcut_entry)
 
+        auto_paste_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        auto_paste_label = Gtk.Label(label="Auto-paste", xalign=0)
+        auto_paste_label.set_hexpand(True)
+        auto_paste_row.append(auto_paste_label)
+        auto_paste_switch = Gtk.Switch()
+        auto_paste_switch.set_active(config.general.paste_mode == "auto")
+        auto_paste_row.append(auto_paste_switch)
+        box.append(auto_paste_row)
+
         startup_service_installed = service_installed()
         startup_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         startup_label = Gtk.Label(label="Start on startup", xalign=0)
@@ -122,6 +135,9 @@ def run_setup() -> int:
                     set_api_key(key)
                 config.general.engine = ["openai", "local"][engine_combo.get_selected()]
                 config.general.language = lang_entry.get_text().strip() or "auto"
+                config.general.paste_mode = paste_mode_from_auto_paste(
+                    auto_paste_switch.get_active()
+                )
                 config.shortcut.binding = shortcut_entry.get_text().strip() or "<Control><Alt>space"
                 save_config(config)
                 register_shortcut(config.shortcut.binding)

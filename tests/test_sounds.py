@@ -30,3 +30,17 @@ def test_missing_paplay_does_not_raise():
         raise FileNotFoundError("paplay")
 
     play("/a/start.wav", runner=missing_paplay)
+
+
+def test_play_falls_back_to_pw_play_when_paplay_is_missing():
+    calls = []
+
+    def fake_which(name):
+        return {"pw-play": "/usr/bin/pw-play"}.get(name)
+
+    def fake_runner(cmd, **kwargs):
+        calls.append((cmd, kwargs))
+
+    play("/a/start.wav", runner=fake_runner, which=fake_which)
+
+    assert calls == [(["/usr/bin/pw-play", "/a/start.wav"], {"check": False})]
