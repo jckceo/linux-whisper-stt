@@ -200,11 +200,7 @@ class TranscriptionJobRunner:
 
     @contextmanager
     def _event_directory(self, event: HistoryEvent) -> Iterator[Path]:
-        if self.config.history.enabled:
-            yield self.history.directory() / event.id
-            return
-
-        with TemporaryDirectory(prefix="linux-whisper-stt-") as directory:
+        with TemporaryDirectory(prefix=f"linux-whisper-stt-{event.id}-") as directory:
             yield Path(directory)
 
     def _complete_file_event(

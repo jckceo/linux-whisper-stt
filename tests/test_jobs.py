@@ -54,8 +54,13 @@ def test_file_job_saves_history_copies_clipboard_and_requests_popup(tmp_path):
     assert event.status == "completed"
     assert event.source_type == "audio_file"
     assert event.transcript_text == "transcribed text"
-    assert prepared_event_dirs == [Path(cfg.history.dir) / event.id]
-    assert backend.calls == [(Path(cfg.history.dir) / event.id / "audio.wav", "auto")]
+    history_event_dir = Path(cfg.history.dir) / event.id
+    assert len(prepared_event_dirs) == 1
+    assert prepared_event_dirs[0] != history_event_dir
+    assert not prepared_event_dirs[0].exists()
+    assert backend.calls == [(prepared_event_dirs[0] / "audio.wav", "auto")]
+    assert (history_event_dir / "audio.wav").read_bytes() == b"RIFF"
+    assert event.audio_path == str(history_event_dir / "audio.wav")
     assert copied == ["transcribed text"]
     assert popups == [event]
     assert [item.state for item in progress] == [
@@ -94,6 +99,47 @@ def test_file_job_failure_marks_event_failed(tmp_path):
 
     assert event.status == "failed"
     assert event.error == "ffmpeg failed"
+
+
+def test_failed_file_job_does_not_leave_prepared_media_in_history(tmp_path):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist")
+    cfg.general.engine = "openai"
+    source = tmp_path / "meeting.mp3"
+    source.write_bytes(b"source")
+
+    def prepare_fn(path, event_dir):
+        prepared_audio = event_dir / "audio.wav"
+        prepared_audio.write_bytes(b"RIFF")
+        return PreparedMedia("audio_file", prepared_audio, 8.0)
+
+    def chunk_paths_fn(audio_path, duration_seconds, event_dir):
+        chunk_path = event_dir / "chunks" / "chunk-000.mp3"
+        chunk_path.parent.mkdir(parents=True)
+        chunk_path.write_bytes(b"chunk")
+        return [chunk_path]
+
+    class FailingBackend:
+        def transcribe(self, wav_path, language):
+            raise RuntimeError("transcription failed")
+
+    event = TranscriptionJobRunner(
+        config=cfg,
+        history=HistoryStore(cfg),
+        backends={"openai": FailingBackend()},
+        prepare_fn=prepare_fn,
+        copy_fn=lambda text: None,
+        popup_fn=lambda event: None,
+        progress_fn=lambda progress: None,
+        chunk_paths_fn=chunk_paths_fn,
+    ).run_file_job(source, created_by="tray")
+
+    event_dir = Path(cfg.history.dir) / event.id
+    assert event.status == "failed"
+    assert event.error == "transcription failed"
+    assert (event_dir / "event.json").exists()
+    assert not (event_dir / "audio.wav").exists()
+    assert not (event_dir / "chunks").exists()
 
 
 def test_file_job_copy_failure_keeps_completed_event(tmp_path):
@@ -290,7 +336,7 @@ def test_disabled_history_file_job_transcribes_without_history_files(tmp_path):
     assert event.status == "completed"
     assert event.transcript_text == "disabled text"
     assert event.source_type == "audio_file"
-    assert event.original_path == str(source)
+    assert event.original_path is None
     assert event.original_name == "meeting.mp3"
     assert event.created_by == "tray"
     assert event.engine == "openai"

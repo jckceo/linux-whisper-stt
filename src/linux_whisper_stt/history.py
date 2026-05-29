@@ -47,6 +47,7 @@ class HistoryStore:
         model: str,
         language: str,
     ) -> HistoryEvent:
+        original_name = Path(original_path).name if original_path is not None else ""
         if not self.config.history.enabled:
             return HistoryEvent(
                 id="disabled",
@@ -54,8 +55,8 @@ class HistoryStore:
                 source_type=source_type,
                 status="disabled",
                 created_by=created_by,
-                original_path=str(original_path) if original_path is not None else None,
-                original_name=Path(original_path).name if original_path is not None else "",
+                original_path=None,
+                original_name=original_name,
                 engine=engine,
                 model=model,
                 language=language,
@@ -67,8 +68,8 @@ class HistoryStore:
             source_type=source_type,
             status="processing",
             created_by=created_by,
-            original_path=str(original_path) if original_path is not None else None,
-            original_name=Path(original_path).name if original_path is not None else "",
+            original_path=None,
+            original_name=original_name,
             engine=engine,
             model=model,
             language=language,

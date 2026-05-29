@@ -142,6 +142,53 @@ def test_save_event_writes_event_directory(tmp_path):
     assert completed.duration_seconds == 12.5
 
 
+def test_create_event_records_original_name_without_full_path(tmp_path):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist")
+    store = HistoryStore(cfg)
+
+    event = store.create_event(
+        source_type="audio_file",
+        created_by="tray",
+        original_path=Path("/home/me/private-client/meeting.mp4"),
+        engine="openai",
+        model="gpt-4o-mini-transcribe",
+        language="auto",
+    )
+
+    loaded = store.load_event(event.id)
+    event_json = (tmp_path / "hist" / event.id / "event.json").read_text(
+        encoding="utf-8"
+    )
+    assert loaded.original_name == "meeting.mp4"
+    assert loaded.original_path in (None, "")
+    assert "/home/me/private-client" not in event_json
+
+
+def test_load_event_preserves_existing_original_path_metadata(tmp_path):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist")
+    event_dir = tmp_path / "hist" / "legacy-v2"
+    event_dir.mkdir(parents=True)
+    (event_dir / "event.json").write_text(
+        "{"
+        '"id":"legacy-v2",'
+        '"created_at":"2026-05-29T12:00:00",'
+        '"source_type":"audio_file",'
+        '"status":"completed",'
+        '"created_by":"tray",'
+        '"original_path":"/home/me/private-client/meeting.mp4",'
+        '"original_name":"meeting.mp4"'
+        "}",
+        encoding="utf-8",
+    )
+
+    event = HistoryStore(cfg).load_event("legacy-v2")
+
+    assert event.original_path == "/home/me/private-client/meeting.mp4"
+    assert event.original_name == "meeting.mp4"
+
+
 def test_complete_event_accepts_audio_already_in_event_directory(tmp_path):
     cfg = Config()
     cfg.history.dir = str(tmp_path / "hist")
