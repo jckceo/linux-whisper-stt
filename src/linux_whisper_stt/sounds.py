@@ -5,7 +5,10 @@ import subprocess
 
 def play(path: str, runner=subprocess.run) -> None:
     # check=False: a missing audio server should never break dictation.
-    runner(["paplay", str(path)], check=False)
+    try:
+        runner(["paplay", str(path)], check=False)
+    except FileNotFoundError:
+        pass
 
 
 class Sounds:

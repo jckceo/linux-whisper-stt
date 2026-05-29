@@ -1,6 +1,30 @@
 from __future__ import annotations
 
 
+def present_existing_window(application) -> bool:
+    win = application.get_active_window()
+    if win is None:
+        return False
+    win.present()
+    return True
+
+
+def build_window_shell(Adw, Gtk, win, content):
+    toolbar = Adw.ToolbarView()
+    header = Adw.HeaderBar()
+    header.set_show_start_title_buttons(False)
+    header.set_show_end_title_buttons(False)
+    close_button = Gtk.Button.new_from_icon_name("window-close-symbolic")
+    close_button.set_tooltip_text("Close")
+    close_button.add_css_class("flat")
+    close_button.connect("clicked", lambda *_: win.close())
+    header.pack_end(close_button)
+    toolbar.add_top_bar(header)
+    toolbar.set_content(content)
+    win.set_content(toolbar)
+    return toolbar
+
+
 def run_setup() -> int:
     import gi
 
@@ -18,6 +42,9 @@ def run_setup() -> int:
     app = Adw.Application(application_id="com.github.linux_whisper_stt.Setup")
 
     def on_activate(application):
+        if present_existing_window(application):
+            return
+
         win = Adw.ApplicationWindow(application=application)
         win.set_title("linux-whisper-stt — Setup")
         win.set_default_size(460, 360)
@@ -72,7 +99,7 @@ def run_setup() -> int:
         box.append(save_btn)
         box.append(status)
 
-        win.set_content(box)
+        build_window_shell(Adw, Gtk, win, box)
         win.present()
 
     app.connect("activate", on_activate)

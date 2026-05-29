@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import subprocess
+
+from ..cli import entrypoint
 from ..assets import asset_path
 from ..controller import State
 
@@ -14,6 +17,20 @@ _ICON_NAMES = {
 
 def icon_for_state(state: State) -> str:
     return _ICON_NAMES[state]
+
+
+def build_settings_command(entrypoint_fn=entrypoint) -> list[str]:
+    return [entrypoint_fn(), "setup"]
+
+
+def open_settings_once(
+    current_process,
+    popen_fn=subprocess.Popen,
+    command_fn=build_settings_command,
+):
+    if current_process is not None and current_process.poll() is None:
+        return current_process
+    return popen_fn(command_fn())
 
 
 class PrintIndicator:
@@ -41,6 +58,7 @@ class TrayIndicator:
         self._Gtk = Gtk
         self._GLib = GLib
         self.controller = None
+        self._settings_process = None
         self.indicator = AppIndicator.Indicator.new(
             "linux-whisper-stt",
             str(asset_path("icons", "idle.png")),
@@ -77,9 +95,7 @@ class TrayIndicator:
         self.indicator.set_menu(menu)
 
     def _open_settings(self, *_):
-        import subprocess
-
-        subprocess.Popen(["linux-whisper-stt", "setup"])
+        self._settings_process = open_settings_once(self._settings_process)
 
     def set_state(self, state: State, detail: str = "") -> None:
         # Called from worker threads -> marshal onto GTK main loop.

@@ -9,19 +9,20 @@ def test_available_false_when_missing():
     assert paste.ydotool_available(which=lambda name: None) is False
 
 
-def test_paste_sends_ctrl_v_keycodes():
+def test_paste_types_text_with_ydotool_stdin():
     calls = []
 
     def fake_runner(cmd, **kwargs):
-        calls.append(cmd)
+        calls.append((cmd, kwargs))
 
         class R:
             returncode = 0
 
         return R()
 
-    paste.paste_via_ydotool(runner=fake_runner)
-    cmd = calls[0]
-    assert cmd[:2] == ["ydotool", "key"]
-    # ctrl down, v down, v up, ctrl up
-    assert cmd[2:] == ["29:1", "47:1", "47:0", "29:0"]
+    paste.paste_via_ydotool("ciao", runner=fake_runner)
+    cmd, kwargs = calls[0]
+    assert cmd == ["ydotool", "type", "--file", "-"]
+    assert kwargs["input"] == "ciao"
+    assert kwargs["text"] is True
+    assert kwargs["check"] is True

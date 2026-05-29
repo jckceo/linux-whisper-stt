@@ -29,7 +29,7 @@ class OutputManager:
         self.copy_fn(text)
         if self.config.general.paste_mode == "auto" and self.available_fn():
             try:
-                self.paste_fn()
+                self.paste_fn(text)
                 return DeliveryResult(True, "Pasted")
             except Exception as e:
                 return DeliveryResult(

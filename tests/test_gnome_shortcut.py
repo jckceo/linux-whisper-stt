@@ -5,6 +5,7 @@ def test_builds_four_gsettings_commands():
     cmds = build_gsettings_commands("<Control><Alt>space")
     assert len(cmds) == 4
     assert cmds[0][0] == "gsettings"
+    assert "custom0" in cmds[0][-1]
     flat = [" ".join(c) for c in cmds]
     assert any("custom-keybindings" in f for f in flat)
     assert any("command" in f for f in flat)

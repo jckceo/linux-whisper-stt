@@ -60,7 +60,6 @@ def main(argv: list[str] | None = None) -> int:
         from .ui.setup_window import run_setup
 
         return run_setup()
-
     parser.print_help()
     return 2
 

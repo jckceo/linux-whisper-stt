@@ -1,0 +1,113 @@
+from linux_whisper_stt.ui.setup_window import (
+    build_window_shell,
+    present_existing_window,
+)
+
+
+def test_present_existing_window_reuses_active_window():
+    class Window:
+        def __init__(self):
+            self.presented = False
+
+        def present(self):
+            self.presented = True
+
+    class Application:
+        def __init__(self):
+            self.window = Window()
+
+        def get_active_window(self):
+            return self.window
+
+    app = Application()
+
+    assert present_existing_window(app) is True
+    assert app.window.presented is True
+
+
+def test_present_existing_window_allows_first_window_creation():
+    class Application:
+        def get_active_window(self):
+            return None
+
+    assert present_existing_window(Application()) is False
+
+
+def test_build_window_shell_adds_close_button():
+    class HeaderBar:
+        def __init__(self):
+            self.packed = []
+            self.show_start_title_buttons = None
+            self.show_end_title_buttons = None
+
+        def pack_end(self, widget):
+            self.packed.append(widget)
+
+        def set_show_start_title_buttons(self, value):
+            self.show_start_title_buttons = value
+
+        def set_show_end_title_buttons(self, value):
+            self.show_end_title_buttons = value
+
+    class ToolbarView:
+        def __init__(self):
+            self.top_bars = []
+            self.content = None
+
+        def add_top_bar(self, widget):
+            self.top_bars.append(widget)
+
+        def set_content(self, widget):
+            self.content = widget
+
+    class Button:
+        def __init__(self):
+            self.tooltip = None
+            self.clicked = None
+
+        @classmethod
+        def new_from_icon_name(cls, icon_name):
+            button = cls()
+            button.icon_name = icon_name
+            return button
+
+        def set_tooltip_text(self, text):
+            self.tooltip = text
+
+        def add_css_class(self, name):
+            self.css_class = name
+
+        def connect(self, event, callback):
+            self.clicked = (event, callback)
+
+    Adw = type("Adw", (), {"HeaderBar": HeaderBar, "ToolbarView": ToolbarView})
+    Gtk = type("Gtk", (), {"Button": Button})
+
+    class Window:
+        def __init__(self):
+            self.closed = False
+            self.content = None
+
+        def close(self):
+            self.closed = True
+
+        def set_content(self, content):
+            self.content = content
+
+    body = object()
+    win = Window()
+
+    shell = build_window_shell(Adw, Gtk, win, body)
+    header = shell.top_bars[0]
+    close_button = header.packed[0]
+    event, callback = close_button.clicked
+    callback()
+
+    assert shell.content is body
+    assert win.content is shell
+    assert header.show_start_title_buttons is False
+    assert header.show_end_title_buttons is False
+    assert close_button.icon_name == "window-close-symbolic"
+    assert close_button.tooltip == "Close"
+    assert event == "clicked"
+    assert win.closed is True

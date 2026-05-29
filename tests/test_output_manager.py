@@ -11,10 +11,10 @@ def make_manager(paste_mode="auto", available=True, paste_raises=False):
     def copy_fn(text):
         copied.append(text)
 
-    def paste_fn():
+    def paste_fn(text):
         if paste_raises:
             raise RuntimeError("uinput denied")
-        pasted.append(True)
+        pasted.append(text)
 
     mgr = OutputManager(
         cfg,
@@ -29,7 +29,7 @@ def test_auto_with_ydotool_copies_and_pastes():
     mgr, copied, pasted = make_manager(paste_mode="auto", available=True)
     result = mgr.deliver("hello")
     assert copied == ["hello"]
-    assert pasted == [True]
+    assert pasted == ["hello"]
     assert result.pasted is True
 
 

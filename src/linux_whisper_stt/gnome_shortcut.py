@@ -5,7 +5,7 @@ import subprocess
 from .cli import entrypoint
 
 CUSTOM_PATH = (
-    "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linux-whisper-stt/"
+    "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/"
 )
 _MEDIA_KEYS = "org.gnome.settings-daemon.plugins.media-keys"
 _SCHEMA = f"{_MEDIA_KEYS}.custom-keybinding:{CUSTOM_PATH}"

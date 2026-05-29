@@ -9,7 +9,7 @@ echo "==> System packages (sudo)"
 sudo apt-get update
 sudo apt-get install -y \
   python3.12 python3.12-venv \
-  wl-clipboard ydotool ffmpeg \
+  wl-clipboard ydotool ydotoold ffmpeg \
   gir1.2-ayatanaappindicator3-0.1 gir1.2-gtk-4.0 gir1.2-adw-1 \
   build-essential cmake git
 

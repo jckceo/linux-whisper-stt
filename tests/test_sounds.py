@@ -1,5 +1,5 @@
 from linux_whisper_stt.config import Config
-from linux_whisper_stt.sounds import Sounds
+from linux_whisper_stt.sounds import Sounds, play
 
 
 def make(sounds_enabled=True):
@@ -23,3 +23,10 @@ def test_silent_when_disabled():
     s.play_start()
     s.play_stop()
     assert played == []
+
+
+def test_missing_paplay_does_not_raise():
+    def missing_paplay(*_args, **_kwargs):
+        raise FileNotFoundError("paplay")
+
+    play("/a/start.wav", runner=missing_paplay)

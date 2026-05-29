@@ -1,183 +1,308 @@
 # linux-whisper-stt
 
-A SuperWhisper-style push-a-shortcut dictation tool for Linux. Press a global keyboard shortcut to start recording your microphone; press it again to stop. The audio is transcribed using either the OpenAI Whisper API or a local whisper.cpp binary, then the resulting text is automatically pasted at the cursor via `ydotool` (with clipboard fallback when ydotool is unavailable). The application runs as a background daemon controlled via an AppIndicator tray icon that changes appearance to reflect the current state.
+Linux desktop dictation with a global shortcut, tray indicator, OpenAI or local Whisper transcription, and Wayland-friendly auto-paste.
 
----
+`linux-whisper-stt` is a SuperWhisper-style tool for GNOME. Press a shortcut once to start recording, press it again to stop, and the app transcribes your speech and types the result into the active window.
 
-## How it works
+## Features
 
-1. The daemon starts and sits in the system tray showing an "idle" icon.
-2. You press the configured shortcut (default `Ctrl+Alt+Space`). GNOME fires `linux-whisper-stt toggle`, which sends a command over a Unix socket to the running daemon.
-3. The daemon begins recording audio from the microphone. The tray icon changes to "recording" and a start sound plays.
-4. You press the shortcut again. A stop sound plays, recording ends, and the daemon enters "transcribing" state.
-5. The WAV file is sent to the configured transcription engine (OpenAI API or local whisper.cpp). While transcribing, the tray shows a "busy" icon.
-6. On success the transcribed text is copied to the clipboard. If `ydotool` is available and `paste_mode` is `auto`, the daemon also synthesises a `Ctrl+V` keystroke via `ydotool key` to paste it at the cursor. Otherwise the text is ready in the clipboard for you to paste manually.
-7. The tray returns to idle. On any error the icon turns to "error" and the error message is stored as `last_error` (visible via `linux-whisper-stt status`).
+- Global GNOME shortcut for start/stop dictation
+- AppIndicator tray icon with state feedback and a Settings window
+- OpenAI transcription via `gpt-4o-mini-transcribe`, `gpt-4o-transcribe`, or `whisper-1`
+- Optional offline transcription through a locally built `whisper.cpp`
+- Auto-paste on Wayland through `ydotool type --file -`
+- Clipboard fallback through `wl-copy`
+- Autostart at login through a desktop entry
+- Per-dictation history with the recorded WAV and transcribed text
 
-The shortcut is registered as a GNOME custom keybinding pointing at the `linux-whisper-stt toggle` command. The daemon autostarts at login via a `.desktop` file written to `~/.config/autostart/`.
+## Platform
 
----
+Tested on Ubuntu 24.04 with GNOME 46 on Wayland.
 
-## Requirements
+The app expects:
 
-- Linux with GNOME on Wayland (tested on Ubuntu 24.04 / GNOME 46)
-- Python 3.12 (system package)
-- System packages installed by `install.sh`:
-  - `wl-clipboard` — Wayland clipboard integration
-  - `ydotool` / `ydotoold` — Wayland-compatible input event injection for auto-paste
-  - `ffmpeg` — audio tooling (used by some whisper.cpp workflows)
-  - `gir1.2-ayatanaappindicator3-0.1`, `gir1.2-gtk-4.0`, `gir1.2-adw-1` — GTK / tray GObject introspection bindings
-  - `build-essential`, `cmake`, `git` — for compiling whisper.cpp (local engine only)
-- For the OpenAI engine: an OpenAI API key with access to the audio transcriptions endpoint.
-- For the local engine: whisper.cpp compiled by `install.sh`.
-
----
+- Python 3.12
+- GNOME custom keybindings through `gsettings`
+- GTK/libadwaita and Ayatana AppIndicator bindings
+- `wl-clipboard`
+- `ydotool` and `ydotoold` for auto-paste
+- `pw-record` for audio capture
 
 ## Install
+
+Clone the repository, then run:
 
 ```bash
 ./install.sh
 ```
 
-`install.sh` does the following in order:
+The installer:
 
-1. Installs system packages via `apt-get`.
-2. Creates `.venv` with `--system-site-packages` (required for PyGObject bindings) and installs the package in editable mode.
-3. Creates a `udev` rule so `ydotool` can access `/dev/uinput`, adds you to the `input` group, and installs a user-level systemd service for `ydotoold`.
-4. Clones and compiles whisper.cpp into `.whisper.cpp/` and downloads the `small` GGML model to `~/.local/share/linux-whisper-stt/models/`.
-5. Writes the whisper.cpp binary path into the config file.
-6. Installs the autostart `.desktop` entry.
+1. Installs required Ubuntu packages with `apt-get`.
+2. Creates `.venv` with `--system-site-packages` so PyGObject can use system GTK bindings.
+3. Installs this package in editable mode.
+4. Installs and enables a user `ydotoold` systemd service.
+5. Builds `whisper.cpp` and downloads the `small` model for local transcription.
+6. Writes an autostart file to `~/.config/autostart/linux-whisper-stt.desktop`.
 
-After installation, run the interactive setup wizard:
+After installation, log out and back in once so group permissions for `ydotool` apply.
+
+Then open Settings:
 
 ```bash
-linux-whisper-stt setup
+.venv/bin/linux-whisper-stt setup
 ```
 
-The setup window lets you enter your OpenAI API key (stored in the system keyring via `keyring`), choose the engine, language, and shortcut binding, then registers the GNOME custom keybinding.
+Settings lets you save your OpenAI API key, choose the transcription engine, set the language, and register the GNOME shortcut.
 
-Finally, log out and back in so the `input` group membership takes effect for ydotool auto-paste.
+## Start The App
 
----
+The app starts automatically on the next login. To start it manually:
+
+```bash
+.venv/bin/linux-whisper-stt daemon
+```
+
+Check its state:
+
+```bash
+.venv/bin/linux-whisper-stt status
+```
 
 ## Usage
 
-### Shortcut
+Default shortcut:
 
-The default shortcut is `Ctrl+Alt+Space` (configured as `<Control><Alt>space` in GNOME). Press it once to start recording, press it again to stop and transcribe.
+```text
+Ctrl+Alt+Space
+```
 
-### Tray menu
+If your desktop already captures that shortcut, open Settings and change it. `Ctrl+Alt+W` works well on many GNOME systems.
 
-Right-click (or left-click, depending on your desktop) the tray icon to see:
+Workflow:
 
-| Menu item | Action |
-|-----------|--------|
-| Status label | Read-only: shows the current state and any detail message |
-| Start / Stop recording | Equivalent to pressing the shortcut |
-| Settings... | Opens the setup window |
-| Quit | Stops the daemon |
+1. Press the shortcut to start recording.
+2. Speak.
+3. Press the shortcut again to stop.
+4. The tray icon switches to transcribing.
+5. The result is copied to the clipboard.
+6. If auto-paste is enabled, `ydotool` types the text into the active app.
 
-### CLI commands
+## Tray Menu
 
-All commands are available as `linux-whisper-stt <command>`:
+The tray menu includes:
+
+| Item | Action |
+| --- | --- |
+| Status | Shows idle, recording, transcribing, pasting, or error |
+| Start / Stop recording | Toggles dictation |
+| Settings... | Opens one Settings window |
+| Quit | Stops the tray process |
+
+## CLI
+
+Use `.venv/bin/linux-whisper-stt <command>` from the repository:
 
 | Command | Description |
-|---------|-------------|
-| `daemon` | Start the background daemon (tray icon + IPC server). Pass `--dry-run` for a headless test run. |
-| `toggle` | Toggle recording on a running daemon |
-| `start` | Start recording on a running daemon (no-op if already recording) |
-| `stop` | Stop recording on a running daemon (no-op if not recording) |
-| `status` | Print the daemon's current state and last error |
-| `setup` | Open the graphical setup / settings window |
+| --- | --- |
+| `daemon` | Start the tray app and IPC server |
+| `daemon --dry-run` | Start without GTK tray UI, useful for tests |
+| `toggle` | Start or stop recording |
+| `start` | Start recording |
+| `stop` | Stop recording |
+| `status` | Print daemon state and last error |
+| `setup` | Open the Settings window |
 
-`toggle`, `start`, `stop`, and `status` communicate with the daemon over a Unix socket at `$XDG_RUNTIME_DIR/linux-whisper-stt.sock`. If the daemon is not running they print a helpful message and exit with code 1.
+`toggle`, `start`, `stop`, and `status` talk to the daemon over a Unix socket at:
 
----
+```text
+$XDG_RUNTIME_DIR/linux-whisper-stt.sock
+```
 
 ## Configuration
 
-The configuration file lives at `~/.config/linux-whisper-stt/config.toml` (or `$XDG_CONFIG_HOME/linux-whisper-stt/config.toml`). It is created with defaults on first save. The file is written with mode `0600`.
+Config file:
 
-All sections and fields with their defaults:
+```text
+~/.config/linux-whisper-stt/config.toml
+```
+
+Defaults:
 
 ```toml
 [general]
-engine = "openai"       # Transcription engine: "openai" or "local"
-language = "auto"       # BCP-47 language code (e.g. "en", "it") or "auto" for detection
-paste_mode = "auto"     # "auto" = paste via ydotool if available; "clipboard_only" = never auto-paste
-sounds = true           # Play start/stop sounds (uses paplay)
+engine = "openai"
+language = "auto"
+paste_mode = "auto"
+sounds = true
 
 [shortcut]
-binding = "<Control><Alt>space"  # GNOME keybinding string
+binding = "<Control><Alt>space"
 
 [openai]
-model = "gpt-4o-mini-transcribe"  # OpenAI model; also valid: "gpt-4o-transcribe", "whisper-1"
+model = "gpt-4o-mini-transcribe"
 
 [local]
-model = "small"                                          # whisper.cpp model name (matches ggml-<model>.bin)
-models_dir = "~/.local/share/linux-whisper-stt/models"  # Directory containing GGML model files
-binary_path = ""                                         # Path to whisper-cli binary; if empty, searches PATH for "whisper-cli"
+model = "small"
+models_dir = "~/.local/share/linux-whisper-stt/models"
+binary_path = ""
 
 [audio]
-device = "default"    # ALSA/PulseAudio device name
-samplerate = 16000    # Sample rate in Hz
-max_seconds = 300     # Maximum recording length in seconds
+device = "default"
+samplerate = 16000
+max_seconds = 300
+
+[history]
+enabled = true
+dir = "~/.local/share/linux-whisper-stt/history"
 ```
 
-Unknown keys in the TOML file are silently ignored, so it is safe to add comments or extra entries.
+Unknown keys are ignored. The config file is written with mode `0600`.
 
----
+## Transcription Engines
 
-## Transcription engines
+### OpenAI
 
-### OpenAI (default)
+OpenAI is the default engine. The API key is stored in the system keyring under:
 
-Sends audio to the OpenAI audio transcriptions endpoint. Requires an API key, stored in the system keyring under the service name `linux-whisper-stt`. Set it with `linux-whisper-stt setup` or directly with `keyring set linux-whisper-stt openai`.
+```text
+service: linux-whisper-stt
+username: openai
+```
 
-Available models: `gpt-4o-mini-transcribe` (default, cheapest), `gpt-4o-transcribe` (higher accuracy), `whisper-1` (legacy).
+Recommended model:
 
-When `language` is `auto`, the language parameter is omitted from the API call and the model detects it automatically. Setting a specific language code improves accuracy and speed.
+```toml
+[openai]
+model = "gpt-4o-mini-transcribe"
+```
 
-### Local (whisper.cpp)
+### Local whisper.cpp
 
-Runs entirely offline using a locally compiled whisper.cpp binary. `install.sh` builds the binary and downloads the `small` model. The model file must be named `ggml-<model>.bin` and placed in `models_dir`.
+The installer builds `whisper.cpp`, downloads the `small` model, and stores the model under:
 
-The daemon invokes `whisper-cli -m <model_path> -f <wav_path> -l <lang> -nt` and captures stdout as the transcription. If `binary_path` is empty, the binary is looked up on `PATH`.
+```text
+~/.local/share/linux-whisper-stt/models
+```
 
----
+Set this in config or through Settings:
 
-## Auto-paste with ydotool
+```toml
+[general]
+engine = "local"
+```
 
-Auto-paste requires:
+The local engine invokes `whisper-cli` with the configured model and language.
 
-1. The `ydotoold` daemon running (installed as a user systemd service by `install.sh`).
-2. Your user being a member of the `input` group AND a `udev` rule granting `input` group write access to `/dev/uinput`. Both are set up by `install.sh`, but the group membership only takes effect after you log out and back in.
+## Auto-paste
 
-When auto-paste is active, the daemon calls `ydotool key 29:1 47:1 47:0 29:0` (Left-Ctrl+V press/release). This works on Wayland because ydotool uses the kernel `uinput` interface rather than X11 protocol.
+Auto-paste uses:
 
-If ydotool is not available or `paste_mode = "clipboard_only"`, the text is placed on the Wayland clipboard (via `wl-copy`) and you paste it manually with `Ctrl+V`.
+```bash
+ydotool type --file -
+```
 
----
+The transcribed text is passed on stdin. This avoids the broken `Ctrl+V` simulation path on some Wayland sessions.
+
+Requirements:
+
+- `ydotoold` is running
+- `/dev/uinput` is writable for your user through the `input` group and udev rule
+- you logged out and back in after installation
+- `paste_mode = "auto"`
+
+Disable auto-paste and use clipboard only:
+
+```toml
+[general]
+paste_mode = "clipboard_only"
+```
+
+## History
+
+When history is enabled, each dictation is saved as:
+
+```text
+~/.local/share/linux-whisper-stt/history/YYYYMMDD-HHMMSS.wav
+~/.local/share/linux-whisper-stt/history/YYYYMMDD-HHMMSS.txt
+```
+
+Disable it:
+
+```toml
+[history]
+enabled = false
+```
 
 ## Troubleshooting
 
-**Tray icon does not appear.**
-The tray requires the `AyatanaAppIndicator3` GTK extension. On Ubuntu GNOME this is present by default. On other desktops you may need to install the relevant GNOME Shell extension or system package (`gir1.2-ayatanaappindicator3-0.1`).
+### Shortcut does nothing
 
-**"daemon not running" when pressing the shortcut.**
-The daemon is not started yet. Either log out/in so the autostart entry fires, or run `linux-whisper-stt daemon` manually in a terminal.
+Check the registered GNOME command:
 
-**Auto-paste does not work.**
-Check that: (a) you have logged out and back in since running `install.sh`, (b) `ydotoold` is running (`systemctl --user status ydotoold`), (c) `id` shows `input` in your groups, and (d) `paste_mode` is not `clipboard_only`.
+```bash
+gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings
+```
 
-**Shortcut does not register or overwrites another keybinding.**
-In v1 the shortcut registration calls `gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "['<path>']"` which replaces the entire custom-keybindings list with only the linux-whisper-stt entry. Any existing custom shortcuts will be unregistered. This is a known limitation of the v1 implementation (see `gnome_shortcut.py`). As a workaround, re-add your other shortcuts manually in the GNOME Settings keyboard panel after running setup.
+Then open Settings and save the shortcut again:
 
-**OpenAI error: API key missing.**
-Run `linux-whisper-stt setup` and enter your API key, or run `keyring set linux-whisper-stt openai` from the terminal with the venv active.
+```bash
+.venv/bin/linux-whisper-stt setup
+```
 
----
+If `Ctrl+Alt+Space` is already used by the desktop, change it to another binding such as `<Control><Alt>w`.
+
+### Daemon is not running
+
+Start it manually:
+
+```bash
+.venv/bin/linux-whisper-stt daemon
+```
+
+Or log out and back in so the autostart entry runs.
+
+### Auto-paste does not work
+
+Check:
+
+```bash
+systemctl --user status ydotoold
+id
+ls -l /dev/uinput
+```
+
+If group membership changed during install, log out and back in.
+
+### Tray is red or stuck
+
+Ask the daemon for the last error:
+
+```bash
+.venv/bin/linux-whisper-stt status
+```
+
+Restart the tray:
+
+```bash
+systemctl --user stop linux-whisper-stt-daemon.service
+systemd-run --user --unit=linux-whisper-stt-daemon --collect "$PWD/.venv/bin/linux-whisper-stt" daemon
+```
+
+### Settings opens more than once
+
+This should no longer happen. The tray tracks the Settings process and reuses it while it is open.
+
+## Development
+
+Run tests:
+
+```bash
+.venv/bin/python -m pytest
+```
+
+The test suite covers config parsing, IPC, recorder behavior, OpenAI/local transcription wrappers, output delivery, GNOME shortcut registration, autostart, tray behavior, Settings, and history.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
