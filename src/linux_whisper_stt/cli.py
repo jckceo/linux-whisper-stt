@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -38,7 +39,15 @@ def _run_remote(command: str) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="linux-whisper-stt")
     sub = parser.add_subparsers(dest="command")
-    for name in ("toggle", "start", "stop", "status", "setup"):
+    for name in (
+        "toggle",
+        "start",
+        "stop",
+        "status",
+        "setup",
+        "install-service",
+        "uninstall-service",
+    ):
         sub.add_parser(name)
     daemon_p = sub.add_parser("daemon")
     daemon_p.add_argument("--dry-run", action="store_true")
@@ -60,6 +69,26 @@ def main(argv: list[str] | None = None) -> int:
         from .ui.setup_window import run_setup
 
         return run_setup()
+    if command == "install-service":
+        from .systemd import install_service
+
+        try:
+            path = install_service()
+        except (OSError, subprocess.CalledProcessError) as e:
+            print(f"error: {e}")
+            return 1
+        print(f"installed service: {path}")
+        return 0
+    if command == "uninstall-service":
+        from .systemd import uninstall_service
+
+        try:
+            path = uninstall_service()
+        except (OSError, subprocess.CalledProcessError) as e:
+            print(f"error: {e}")
+            return 1
+        print(f"removed service: {path}")
+        return 0
     parser.print_help()
     return 2
 

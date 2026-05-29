@@ -25,6 +25,18 @@ def build_window_shell(Adw, Gtk, win, content):
     return toolbar
 
 
+def save_startup_default(install_fn=None, service_installed_fn=None):
+    from ..autostart import install_autostart
+    from ..systemd import service_installed
+
+    install_fn = install_fn or install_autostart
+    service_installed_fn = service_installed_fn or service_installed
+    if service_installed_fn():
+        return "systemd"
+    install_fn()
+    return "autostart"
+
+
 def run_setup() -> int:
     import gi
 
@@ -32,7 +44,6 @@ def run_setup() -> int:
     gi.require_version("Adw", "1")
     from gi.repository import Adw, Gtk
 
-    from ..autostart import install_autostart
     from ..config import load_config, save_config
     from ..gnome_shortcut import register_shortcut
     from ..secrets import get_api_key, set_api_key
@@ -91,8 +102,13 @@ def run_setup() -> int:
                 config.shortcut.binding = shortcut_entry.get_text().strip() or "<Control><Alt>space"
                 save_config(config)
                 register_shortcut(config.shortcut.binding)
-                install_autostart()
-                status.set_text("Saved. Shortcut registered. Autostart enabled.")
+                startup_mode = save_startup_default()
+                if startup_mode == "systemd":
+                    status.set_text(
+                        "Saved. Shortcut registered. Startup is managed by systemd service."
+                    )
+                else:
+                    status.set_text("Saved. Shortcut registered. Autostart enabled.")
             except Exception as e:
                 status.set_text(f"Error: {e}")
 

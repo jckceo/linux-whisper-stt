@@ -28,3 +28,9 @@ def install_autostart() -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(_desktop_content())
     return path
+
+
+def uninstall_autostart() -> Path:
+    path = autostart_path()
+    path.unlink(missing_ok=True)
+    return path

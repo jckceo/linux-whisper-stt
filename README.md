@@ -89,6 +89,31 @@ Check its state:
 .venv/bin/linux-whisper-stt status
 ```
 
+## Systemd User Service
+
+Install and start the daemon as a systemd user service:
+
+```bash
+.venv/bin/linux-whisper-stt install-service
+```
+
+Installing the systemd user service removes the desktop autostart entry at
+`~/.config/autostart/linux-whisper-stt.desktop` to avoid running duplicate
+daemons. Use either Settings autostart or the systemd service, but not both at
+the same time.
+
+Follow service logs:
+
+```bash
+journalctl --user -u linux-whisper-stt.service -f
+```
+
+Remove the service:
+
+```bash
+.venv/bin/linux-whisper-stt uninstall-service
+```
+
 ## Usage
 
 Default shortcut:
@@ -132,6 +157,8 @@ Use `.venv/bin/linux-whisper-stt <command>` from the repository:
 | `stop` | Stop recording |
 | `status` | Print daemon state and last error |
 | `setup` | Open the Settings window |
+| `install-service` | Install and start the systemd user service |
+| `uninstall-service` | Stop and remove the systemd user service |
 
 `toggle`, `start`, `stop`, and `status` talk to the daemon over a Unix socket at:
 
@@ -307,8 +334,14 @@ Ask the daemon for the last error:
 Restart the tray:
 
 ```bash
-systemctl --user stop linux-whisper-stt-daemon.service
-systemd-run --user --unit=linux-whisper-stt-daemon --collect "$PWD/.venv/bin/linux-whisper-stt" daemon
+systemctl --user restart linux-whisper-stt.service
+journalctl --user -u linux-whisper-stt.service -n 50 --no-pager
+```
+
+If you are not using the systemd service, quit the tray and restart it manually:
+
+```bash
+.venv/bin/linux-whisper-stt daemon
 ```
 
 ### Settings opens more than once

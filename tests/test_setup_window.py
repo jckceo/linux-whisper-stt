@@ -1,6 +1,7 @@
 from linux_whisper_stt.ui.setup_window import (
     build_window_shell,
     present_existing_window,
+    save_startup_default,
 )
 
 
@@ -31,6 +32,36 @@ def test_present_existing_window_allows_first_window_creation():
             return None
 
     assert present_existing_window(Application()) is False
+
+
+def test_save_startup_default_installs_autostart_when_service_is_missing():
+    calls = []
+
+    def fake_install():
+        calls.append("install")
+
+    mode = save_startup_default(
+        install_fn=fake_install,
+        service_installed_fn=lambda: False,
+    )
+
+    assert mode == "autostart"
+    assert calls == ["install"]
+
+
+def test_save_startup_default_uses_systemd_when_service_is_installed():
+    calls = []
+
+    def fake_install():
+        calls.append("install")
+
+    mode = save_startup_default(
+        install_fn=fake_install,
+        service_installed_fn=lambda: True,
+    )
+
+    assert mode == "systemd"
+    assert calls == []
 
 
 def test_build_window_shell_adds_close_button():
