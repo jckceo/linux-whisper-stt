@@ -59,3 +59,31 @@ def test_missing_api_key_raises(tmp_path):
     with pytest.raises(RuntimeError) as exc:
         t.transcribe(wav, "auto")
     assert "API key" in str(exc.value)
+
+
+def test_openai_transcriber_transcribe_path_uses_existing_api(tmp_path):
+    wav = tmp_path / "chunk.mp3"
+    wav.write_bytes(b"audio")
+
+    class Resp:
+        text = "chunk text"
+
+    class Transcriptions:
+        def create(self, **kwargs):
+            assert kwargs["model"] == "gpt-4o-mini-transcribe"
+            assert kwargs["language"] == "it"
+            return Resp()
+
+    class Audio:
+        transcriptions = Transcriptions()
+
+    class Client:
+        audio = Audio()
+
+    transcriber = OpenAITranscriber(
+        api_key_provider=lambda: "key",
+        model="gpt-4o-mini-transcribe",
+        client_factory=lambda api_key: Client(),
+    )
+
+    assert transcriber.transcribe(wav, "it") == "chunk text"
