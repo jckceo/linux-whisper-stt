@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Protocol
 
 from linux_whisper_stt.history import HistoryEvent, HistoryStore
@@ -52,34 +54,31 @@ class TranscriptionJobRunner:
             language=self.config.general.language,
         )
         try:
-            self._progress("preparing", event.id, "Preparing file")
-            prepared = self.prepare_fn(source_path, self.history.directory() / event.id)
-            event.source_type = prepared.source_type
-            self.history.update_event(event)
+            with self._event_directory(event) as event_dir:
+                self._progress("preparing", event.id, "Preparing file")
+                prepared = self.prepare_fn(source_path, event_dir)
+                event.source_type = prepared.source_type
+                self.history.update_event(event)
 
-            self._progress("transcribing", event.id, "Transcribing file")
-            transcript = self._current_backend().transcribe(
-                prepared.audio_path, self.config.general.language
-            )
-            final_text = transcript.strip()
+                self._progress("transcribing", event.id, "Transcribing file")
+                transcript = self._backend().transcribe(
+                    prepared.audio_path, self.config.general.language
+                )
+                final_text = transcript.strip()
 
-            self._progress("merging", event.id, "Saving transcript")
-            event = self.history.complete_event(
-                event.id,
-                prepared.audio_path,
-                final_text,
-                duration_seconds=prepared.duration_seconds,
-            )
-
-            self.copy_fn(final_text)
-            self._progress("completed", event.id, "Completed")
-            self.popup_fn(event)
-            return event
+                self._progress("merging", event.id, "Saving transcript")
+                event = self._complete_file_event(event, prepared, final_text)
         except Exception as exc:
-            event = self.history.fail_event(event.id, str(exc))
+            event = self._fail_event(event, str(exc))
             self._progress("failed", event.id, str(exc))
-            self.popup_fn(event)
+            self._popup(event)
             return event
+
+        if final_text:
+            self._copy_result(final_text)
+        self._progress("completed", event.id, "Completed")
+        self._popup(event)
+        return event
 
     def run_microphone_job(
         self,
@@ -110,7 +109,65 @@ class TranscriptionJobRunner:
         return getattr(section, "model", "") if section is not None else ""
 
     def _progress(self, state: str, event_id: str, detail: str) -> None:
-        self.progress_fn(JobProgress(state, event_id, detail))
+        try:
+            self.progress_fn(JobProgress(state, event_id, detail))
+        except Exception:
+            pass
 
-    def _current_backend(self) -> TranscriptionBackend:
-        return self.backends[self.config.general.engine]
+    def _copy_result(self, text: str) -> None:
+        try:
+            self.copy_fn(text)
+        except Exception:
+            pass
+
+    def _popup(self, event: HistoryEvent) -> None:
+        try:
+            self.popup_fn(event)
+        except Exception:
+            pass
+
+    def _backend(self) -> TranscriptionBackend:
+        engine = self.config.general.engine
+        backend = self.backends.get(engine)
+        if backend is None:
+            raise RuntimeError(f"No transcription backend configured for engine: {engine}")
+        return backend
+
+    @contextmanager
+    def _event_directory(self, event: HistoryEvent) -> Iterator[Path]:
+        if self.config.history.enabled:
+            yield self.history.directory() / event.id
+            return
+
+        with TemporaryDirectory(prefix="linux-whisper-stt-") as directory:
+            yield Path(directory)
+
+    def _complete_file_event(
+        self,
+        event: HistoryEvent,
+        prepared: PreparedMedia,
+        transcript: str,
+    ) -> HistoryEvent:
+        if self.config.history.enabled:
+            return self.history.complete_event(
+                event.id,
+                prepared.audio_path,
+                transcript,
+                duration_seconds=prepared.duration_seconds,
+            )
+
+        event.status = "completed"
+        event.audio_path = str(prepared.audio_path)
+        event.transcript_path = ""
+        event.duration_seconds = prepared.duration_seconds
+        event.error = ""
+        event.transcript_text = transcript
+        return event
+
+    def _fail_event(self, event: HistoryEvent, message: str) -> HistoryEvent:
+        if self.config.history.enabled:
+            return self.history.fail_event(event.id, message)
+
+        event.status = "failed"
+        event.error = message
+        return event
