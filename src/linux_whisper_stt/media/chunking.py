@@ -16,23 +16,43 @@ class ChunkPlan:
     duration_seconds: float
 
 
+def estimate_mp3_bytes(duration_seconds: float, bitrate_kbps: int = 64) -> int:
+    return math.ceil(duration_seconds * bitrate_kbps * 1000 / 8)
+
+
 def plan_chunks(
     duration_seconds: float,
     estimated_bytes: int,
     target_bytes: int = OPENAI_TARGET_UPLOAD_BYTES,
 ) -> list[ChunkPlan]:
+    if target_bytes <= 0 or target_bytes > OPENAI_HARD_UPLOAD_LIMIT_BYTES:
+        raise ValueError("target_bytes must be between 1 and OpenAI hard upload limit")
     if duration_seconds <= 0:
         return [ChunkPlan(index=0, start_seconds=0.0, duration_seconds=0.0)]
     count = max(1, math.ceil(estimated_bytes / target_bytes))
     chunk_duration = duration_seconds / count
-    return [
-        ChunkPlan(
-            index=i,
-            start_seconds=round(i * chunk_duration, 3),
-            duration_seconds=round(chunk_duration, 3),
+    rounded_chunk_duration = round(chunk_duration, 3)
+    if rounded_chunk_duration <= 0:
+        raise ValueError("chunk duration too small")
+
+    chunks: list[ChunkPlan] = []
+    for i in range(count):
+        start_seconds = round(i * chunk_duration, 3)
+        duration = (
+            round(duration_seconds - start_seconds, 3)
+            if i == count - 1
+            else rounded_chunk_duration
         )
-        for i in range(count)
-    ]
+        if duration <= 0:
+            raise ValueError("chunk duration too small")
+        chunks.append(
+            ChunkPlan(
+                index=i,
+                start_seconds=start_seconds,
+                duration_seconds=duration,
+            )
+        )
+    return chunks
 
 
 def build_export_chunk_command(source: Path, destination: Path, chunk: ChunkPlan) -> list[str]:
@@ -73,6 +93,8 @@ def export_chunks(
             text=True,
         )
         if proc.returncode != 0:
+            for path in [*paths, destination]:
+                path.unlink(missing_ok=True)
             raise RuntimeError((proc.stderr or "ffmpeg chunk export failed").strip())
         paths.append(destination)
     return paths
