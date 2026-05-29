@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import time
 
-CTRL_V_SEQUENCE = ["ctrl+v"]
+TYPE_TEXT_COMMAND = ["ydotool", "type", "--file", "-"]
 
 
 def ydotool_available(which=shutil.which) -> bool:
@@ -12,6 +12,5 @@ def ydotool_available(which=shutil.which) -> bool:
 
 
 def paste_via_ydotool(text: str, runner=subprocess.run, sleep_fn=time.sleep) -> None:
-    _ = text
     sleep_fn(0.15)
-    runner(["ydotool", "key", *CTRL_V_SEQUENCE], check=True)
+    runner(TYPE_TEXT_COMMAND, input=text, text=True, check=True)

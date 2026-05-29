@@ -9,7 +9,7 @@ def test_available_false_when_missing():
     assert paste.ydotool_available(which=lambda name: None) is False
 
 
-def test_paste_uses_delayed_clipboard_paste_shortcut():
+def test_paste_types_text_directly_after_delay():
     calls = []
     sleeps = []
 
@@ -25,11 +25,11 @@ def test_paste_uses_delayed_clipboard_paste_shortcut():
 
     assert sleeps == [0.15]
     assert calls == [
-        (["ydotool", "key", "ctrl+v"], {"check": True}),
+        (["ydotool", "type", "--file", "-"], {"input": "ciao", "text": True, "check": True}),
     ]
 
 
-def test_paste_does_not_send_legacy_numeric_keycodes():
+def test_paste_does_not_send_clipboard_paste_shortcut_or_keycodes():
     calls = []
 
     def fake_runner(cmd, **kwargs):
@@ -44,3 +44,5 @@ def test_paste_does_not_send_legacy_numeric_keycodes():
 
     sent_tokens = [token for call in calls for token in call[2:]]
     assert not any(":" in token for token in sent_tokens)
+    assert not any(token == "ctrl+v" for token in sent_tokens)
+    assert not any(call[:2] == ["ydotool", "key"] for call in calls)
