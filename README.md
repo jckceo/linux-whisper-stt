@@ -158,16 +158,18 @@ Transcribe local media files from the tray menu with `Transcribe file...`, from
 the file manager with `Open With -> Transcribe with linux-whisper-stt`, or from
 the CLI with `transcribe-file <path>`.
 
-File transcription uses the current Settings engine and language. When it
+File transcription uses the daemon's loaded Settings/config engine and
+language. If you change Settings and a file job still uses the old engine or
+language, restart or reload the daemon before starting the file job. When it
 finishes, the final transcript is copied to the clipboard and shown in a popup.
 Unlike shortcut dictation, file transcription is not auto-pasted into the active
 app.
 
 Audio and video inputs are normalized with `ffmpeg` before transcription. For
 video files, history stores the extracted audio only, not a copy of the original
-video. OpenAI transcription uploads are limited to 25 MB per file, so long
-OpenAI jobs are split into upload-safe chunks, each chunk is transcribed, and
-the chunk transcripts are merged into one text.
+video. OpenAI transcription uploads are limited to 25 MB per file. Known-duration
+OpenAI file jobs are transcoded to MP3 chunk or chunks, split when needed into
+upload-safe chunks, transcribed, and merged into one text.
 
 ## CLI
 
@@ -319,9 +321,11 @@ directory:
 ```
 
 The event metadata records where the transcript came from, the engine, model,
-language, status, duration, and original file name when applicable. Each
-completed event stores the transcript and a complete app-managed audio file.
-For video transcription events, that audio file is the extracted audio track.
+language, status, duration, and original file name when applicable. In normal
+operation, each completed event stores the transcript and a complete
+app-managed audio file. For video transcription events, that audio file is the
+extracted audio track. If the audio copy fails, the completed transcript event
+is still preserved without audio.
 
 Disable it:
 

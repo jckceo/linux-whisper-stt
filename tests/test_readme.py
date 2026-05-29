@@ -36,12 +36,24 @@ def test_readme_documents_optional_installer_flags():
 
 def test_readme_documents_file_transcription_and_history():
     readme = (ROOT / "README.md").read_text()
+    file_transcription = _section(readme, "## File Transcription")
+    history = _section(readme, "## History")
 
-    assert "Transcribe file" in readme
-    assert "Open With" in readme
-    assert "History" in readme
-    assert "25 MB" in readme
-    assert "video" in readme
+    assert "Transcribe file" in file_transcription
+    assert "Open With" in file_transcription
+    assert "daemon's loaded Settings/config" in file_transcription
+    assert "final transcript is copied to the clipboard" in file_transcription
+    assert "shown in a popup" in file_transcription
+    assert "not auto-pasted" in file_transcription
+    assert "25 MB" in file_transcription
+    assert "MP3 chunk" in file_transcription
+    assert "split" in file_transcription
+    assert "merged into one text" in file_transcription
+    assert "extracted audio" in file_transcription
+    assert "Settings -> History" in history
+    assert "app-managed audio" in history
+    assert "transcript" in history
+    assert "without audio" in history
 
 
 def test_security_reporting_has_actionable_github_channel():
