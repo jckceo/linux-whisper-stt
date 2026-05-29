@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 
 from ..assets import asset_path
 from ..cli import entrypoint
@@ -21,6 +22,20 @@ def icon_for_state(state: State) -> str:
 
 def build_settings_command(entrypoint_fn=entrypoint) -> list[str]:
     return [entrypoint_fn(), "setup"]
+
+
+def file_filter_patterns() -> list[str]:
+    return [
+        "*.wav",
+        "*.mp3",
+        "*.m4a",
+        "*.flac",
+        "*.ogg",
+        "*.mp4",
+        "*.mov",
+        "*.mkv",
+        "*.webm",
+    ]
 
 
 def open_settings_once(
@@ -59,6 +74,7 @@ class TrayIndicator:
         self._GLib = GLib
         self.controller = None
         self._settings_process = None
+        self._transcribe_file_callback = None
         self.indicator = AppIndicator.Indicator.new(
             "linux-whisper-stt",
             str(asset_path("icons", "idle.png")),
@@ -71,6 +87,9 @@ class TrayIndicator:
     def bind_controller(self, controller) -> None:
         self.controller = controller
 
+    def bind_transcribe_file(self, callback) -> None:
+        self._transcribe_file_callback = callback
+
     def _build_menu(self) -> None:
         Gtk = self._Gtk
         menu = Gtk.Menu()
@@ -82,6 +101,10 @@ class TrayIndicator:
         toggle_item = Gtk.MenuItem(label="Start / Stop recording")
         toggle_item.connect("activate", lambda *_: self.controller and self.controller.toggle())
         menu.append(toggle_item)
+
+        file_item = Gtk.MenuItem(label="Transcribe file...")
+        file_item.connect("activate", self._open_file_picker)
+        menu.append(file_item)
 
         settings_item = Gtk.MenuItem(label="Settings…")
         settings_item.connect("activate", self._open_settings)
@@ -96,6 +119,36 @@ class TrayIndicator:
 
     def _open_settings(self, *_):
         self._settings_process = open_settings_once(self._settings_process)
+
+    def _open_file_picker(self, *_):
+        Gtk = self._Gtk
+        dialog = Gtk.FileChooserDialog(
+            title="Transcribe file",
+            action=Gtk.FileChooserAction.OPEN,
+            buttons=(
+                Gtk.STOCK_CANCEL,
+                Gtk.ResponseType.CANCEL,
+                Gtk.STOCK_OPEN,
+                Gtk.ResponseType.OK,
+            ),
+        )
+        file_filter = Gtk.FileFilter()
+        file_filter.set_name("Audio and video files")
+        for pattern in file_filter_patterns():
+            file_filter.add_pattern(pattern)
+        dialog.add_filter(file_filter)
+
+        try:
+            response = dialog.run()
+            filename = dialog.get_filename()
+            if (
+                response == Gtk.ResponseType.OK
+                and filename
+                and self._transcribe_file_callback is not None
+            ):
+                self._transcribe_file_callback(Path(filename), "tray")
+        finally:
+            dialog.destroy()
 
     def set_state(self, state: State, detail: str = "") -> None:
         # Called from worker threads -> marshal onto GTK main loop.

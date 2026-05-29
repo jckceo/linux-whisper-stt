@@ -63,6 +63,57 @@ def test_build_controller_wires_file_job_runner(monkeypatch):
     assert controller.indicator.states[-1][0] == State.TRANSCRIBING
 
 
+def test_build_controller_accepts_popup_fn(monkeypatch):
+    import linux_whisper_stt.audio.recorder
+    import linux_whisper_stt.history
+    import linux_whisper_stt.output.manager
+    import linux_whisper_stt.transcribe.local_backend
+    import linux_whisper_stt.transcribe.manager
+    import linux_whisper_stt.transcribe.openai_backend
+
+    monkeypatch.setattr(
+        linux_whisper_stt.audio.recorder, "Recorder", lambda **_kwargs: FakeComponent()
+    )
+    monkeypatch.setattr(
+        linux_whisper_stt.transcribe.openai_backend,
+        "OpenAITranscriber",
+        lambda **_kwargs: FakeComponent(),
+    )
+    monkeypatch.setattr(
+        linux_whisper_stt.transcribe.local_backend.LocalWhisperCppTranscriber,
+        "from_config",
+        lambda _config: FakeComponent(),
+    )
+    monkeypatch.setattr(
+        linux_whisper_stt.transcribe.manager,
+        "TranscriptionManager",
+        lambda *_args, **_kwargs: FakeComponent(),
+    )
+    monkeypatch.setattr(
+        linux_whisper_stt.output.manager,
+        "OutputManager",
+        lambda _config: FakeComponent(),
+    )
+    monkeypatch.setattr(
+        "linux_whisper_stt.daemon.Sounds", lambda *_args, **_kwargs: FakeComponent()
+    )
+    monkeypatch.setattr(
+        linux_whisper_stt.history,
+        "HistoryStore",
+        lambda _config: FakeComponent(),
+    )
+
+    popups = []
+    controller = build_controller(
+        Config(), FakeIndicator(), lambda fn: fn(), popup_fn=popups.append
+    )
+
+    event = object()
+    controller.file_jobs.popup_fn(event)
+
+    assert popups == [event]
+
+
 def test_structured_unknown_command_returns_error():
     class Controller:
         def status(self):

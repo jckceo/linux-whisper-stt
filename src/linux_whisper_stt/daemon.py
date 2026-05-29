@@ -11,7 +11,7 @@ from .secrets import get_api_key
 from .sounds import Sounds
 
 
-def build_controller(config, indicator, run_async):
+def build_controller(config, indicator, run_async, popup_fn=None):
     """Wire all real components into a Controller. Shared by daemon and dry-run."""
     from .audio.recorder import Recorder
     from .output.manager import OutputManager
@@ -57,7 +57,7 @@ def build_controller(config, indicator, run_async):
         history=history,
         backends=backends,
         copy_fn=copy_to_clipboard,
-        popup_fn=lambda _event: None,
+        popup_fn=popup_fn or (lambda _event: None),
         progress_fn=report_job_progress,
     )
     return Controller(
@@ -146,18 +146,26 @@ def run_daemon(dry_run: bool = False) -> int:
     def run_async(fn):
         threading.Thread(target=fn, daemon=True).start()
 
+    popup_fn = None
     if dry_run:
         from .tray.indicator import PrintIndicator
 
         indicator = PrintIndicator()
     else:
         from .tray.indicator import TrayIndicator
+        from .ui.result_window import show_result_window
 
         indicator = TrayIndicator()
 
-    controller = build_controller(config, indicator, run_async)
+        def popup_fn(event):
+            return GLib.idle_add(lambda: show_result_window(event) or False)
+
+    controller = build_controller(config, indicator, run_async, popup_fn=popup_fn)
     if not dry_run:
         indicator.bind_controller(controller)
+        indicator.bind_transcribe_file(
+            lambda path, created_by: controller.transcribe_file(path, created_by)
+        )
 
     server = IPCServer(make_ipc_handler(controller, GLib.idle_add))
     threading.Thread(target=server.serve_forever, daemon=True).start()

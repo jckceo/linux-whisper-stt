@@ -2,6 +2,7 @@ from linux_whisper_stt.controller import State
 from linux_whisper_stt.tray.indicator import (
     PrintIndicator,
     build_settings_command,
+    file_filter_patterns,
     icon_for_state,
     open_settings_once,
 )
@@ -60,3 +61,11 @@ def test_open_settings_starts_when_no_process_is_running():
     )
 
     assert result is new_proc
+
+
+def test_file_filter_patterns_include_audio_and_video():
+    patterns = file_filter_patterns()
+    assert "*.mp3" in patterns
+    assert "*.wav" in patterns
+    assert "*.mp4" in patterns
+    assert "*.mkv" in patterns
