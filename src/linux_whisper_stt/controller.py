@@ -23,6 +23,7 @@ class Controller:
         sounds,
         config,
         run_async: Callable[[Callable[[], None]], None] | None = None,
+        history=None,
     ):
         self.recorder = recorder
         self.transcription = transcription
@@ -30,6 +31,7 @@ class Controller:
         self.indicator = indicator
         self.sounds = sounds
         self.config = config
+        self.history = history
         # default: run inline (deterministic for tests). Daemon injects a thread runner.
         self._run_async = run_async or (lambda fn: fn())
         self.state = State.IDLE
@@ -74,6 +76,8 @@ class Controller:
     def _transcribe_and_deliver(self, wav_path: Path) -> None:
         try:
             text = self.transcription.transcribe(wav_path, self.config.general.language)
+            if self.history is not None:
+                self.history.save(wav_path, text)
             if not text or not text.strip():
                 self._set_state(State.IDLE, "Nothing transcribed")
                 return

@@ -38,7 +38,12 @@ def build_controller(config, indicator, run_async):
         start_path=str(asset_path("sounds", "start.wav")),
         stop_path=str(asset_path("sounds", "stop.wav")),
     )
-    return Controller(recorder, transcription, output, indicator, sounds, config, run_async)
+    from .history import HistoryStore
+
+    history = HistoryStore(config)
+    return Controller(
+        recorder, transcription, output, indicator, sounds, config, run_async, history
+    )
 
 
 def run_daemon(dry_run: bool = False) -> int:

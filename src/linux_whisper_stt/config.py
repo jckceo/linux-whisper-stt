@@ -40,6 +40,12 @@ class AudioConfig:
     max_seconds: int = 300
 
 
+@dataclass
+class HistoryConfig:
+    enabled: bool = True
+    dir: str = "~/.local/share/linux-whisper-stt/history"
+
+
 def _build(dc_cls, data: dict):
     known = {f.name for f in fields(dc_cls)}
     return dc_cls(**{k: v for k, v in data.items() if k in known})
@@ -52,6 +58,7 @@ class Config:
     openai: OpenAIConfig = field(default_factory=OpenAIConfig)
     local: LocalConfig = field(default_factory=LocalConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
+    history: HistoryConfig = field(default_factory=HistoryConfig)
 
     @classmethod
     def from_dict(cls, data: dict) -> "Config":
@@ -61,6 +68,7 @@ class Config:
             openai=_build(OpenAIConfig, data.get("openai", {})),
             local=_build(LocalConfig, data.get("local", {})),
             audio=_build(AudioConfig, data.get("audio", {})),
+            history=_build(HistoryConfig, data.get("history", {})),
         )
 
     def to_dict(self) -> dict:
@@ -70,6 +78,7 @@ class Config:
             "openai": asdict(self.openai),
             "local": asdict(self.local),
             "audio": asdict(self.audio),
+            "history": asdict(self.history),
         }
 
 
