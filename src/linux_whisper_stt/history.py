@@ -110,22 +110,28 @@ class HistoryStore:
         transcript_dest = event_dir / "transcript.txt"
         audio_source = Path(audio_source)
         try:
-            if audio_source.resolve() != audio_dest.resolve():
-                shutil.copyfile(audio_source, audio_dest)
-            audio_path = str(audio_dest)
-        except OSError:
-            if not allow_audio_failure:
-                raise
-            audio_path = ""
-        transcript_dest.write_text(transcript or "", encoding="utf-8")
+            try:
+                if audio_source.resolve() != audio_dest.resolve():
+                    shutil.copyfile(audio_source, audio_dest)
+                audio_path = str(audio_dest)
+            except OSError:
+                audio_dest.unlink(missing_ok=True)
+                if not allow_audio_failure:
+                    raise
+                audio_path = ""
+            transcript_dest.write_text(transcript or "", encoding="utf-8")
 
-        event.status = "completed"
-        event.audio_path = audio_path
-        event.transcript_path = str(transcript_dest)
-        event.duration_seconds = duration_seconds
-        event.error = ""
-        event.transcript_text = transcript or ""
-        self.update_event(event)
+            event.status = "completed"
+            event.audio_path = audio_path
+            event.transcript_path = str(transcript_dest)
+            event.duration_seconds = duration_seconds
+            event.error = ""
+            event.transcript_text = transcript or ""
+            self.update_event(event)
+        except Exception:
+            audio_dest.unlink(missing_ok=True)
+            transcript_dest.unlink(missing_ok=True)
+            raise
         return event
 
     def fail_event(self, event_id: str, message: str) -> HistoryEvent:

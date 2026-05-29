@@ -142,6 +142,47 @@ def test_failed_file_job_does_not_leave_prepared_media_in_history(tmp_path):
     assert not (event_dir / "chunks").exists()
 
 
+def test_file_job_completion_failure_removes_copied_history_outputs(
+    tmp_path, monkeypatch
+):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist")
+    source = tmp_path / "meeting.mp3"
+    source.write_bytes(b"source")
+    original_write_text = Path.write_text
+
+    def prepare_fn(path, event_dir):
+        prepared_audio = event_dir / "audio.wav"
+        prepared_audio.write_bytes(b"RIFF")
+        return PreparedMedia("audio_file", prepared_audio, 8.0)
+
+    def fail_transcript_write(path, data, *args, **kwargs):
+        if path.name == "transcript.txt":
+            original_write_text(path, "partial transcript", *args, **kwargs)
+            raise RuntimeError("transcript write failed")
+        return original_write_text(path, data, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", fail_transcript_write)
+
+    event = TranscriptionJobRunner(
+        config=cfg,
+        history=HistoryStore(cfg),
+        backends={"openai": FakeBackend("completed text")},
+        prepare_fn=prepare_fn,
+        copy_fn=lambda text: None,
+        popup_fn=lambda event: None,
+        progress_fn=lambda progress: None,
+        chunk_paths_fn=_unchunked_paths,
+    ).run_file_job(source, created_by="tray")
+
+    event_dir = Path(cfg.history.dir) / event.id
+    assert event.status == "failed"
+    assert event.error == "transcript write failed"
+    assert (event_dir / "event.json").exists()
+    assert not (event_dir / "audio.wav").exists()
+    assert not (event_dir / "transcript.txt").exists()
+
+
 def test_file_job_copy_failure_keeps_completed_event(tmp_path):
     cfg = Config()
     cfg.history.dir = str(tmp_path / "hist")
