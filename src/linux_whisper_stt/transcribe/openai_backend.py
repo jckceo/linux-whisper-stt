@@ -17,11 +17,13 @@ class OpenAITranscriber:
         api_key_provider: Callable[[], str | None],
         model: str,
         dictionary_terms: str = "",
+        dictionary_terms_provider: Callable[[], str] | None = None,
         client_factory: Callable[[str], object] = _default_client_factory,
     ):
         self.api_key_provider = api_key_provider
         self.model = model
         self.dictionary_terms = dictionary_terms
+        self.dictionary_terms_provider = dictionary_terms_provider
         self.client_factory = client_factory
 
     def transcribe(self, wav_path: Path, language: str) -> str:
@@ -34,12 +36,17 @@ class OpenAITranscriber:
         kwargs = {"model": self.model}
         if language and language != "auto":
             kwargs["language"] = language
-        prompt = build_dictionary_prompt(self.dictionary_terms)
+        prompt = build_dictionary_prompt(self._dictionary_terms())
         if prompt:
             kwargs["prompt"] = prompt
         with open(wav_path, "rb") as f:
             resp = client.audio.transcriptions.create(file=f, **kwargs)
         return resp.text
+
+    def _dictionary_terms(self) -> str:
+        if self.dictionary_terms_provider is not None:
+            return self.dictionary_terms_provider()
+        return self.dictionary_terms
 
 
 def build_dictionary_prompt(terms: str) -> str:

@@ -4,6 +4,7 @@ from linux_whisper_stt.daemon import (
     augment_daemon_path,
     build_controller,
     build_result_popup_fn,
+    load_dictionary_terms,
     make_ipc_handler,
     schedule_result_popup,
 )
@@ -126,12 +127,16 @@ def test_build_controller_passes_dictionary_terms_to_openai_backend(monkeypatch)
         lambda **kwargs: captured.update(kwargs) or FakeComponent(),
     )
 
+    build_controller(Config(), FakeIndicator(), lambda fn: fn())
+
+    assert captured["dictionary_terms_provider"] is load_dictionary_terms
+
+
+def test_load_dictionary_terms_reads_current_config():
     config = Config()
     config.dictionary.terms = "ASIN, FNSKU"
 
-    build_controller(config, FakeIndicator(), lambda fn: fn())
-
-    assert captured["dictionary_terms"] == "ASIN, FNSKU"
+    assert load_dictionary_terms(lambda: config) == "ASIN, FNSKU"
 
 
 def test_build_controller_wires_file_job_runner(monkeypatch):

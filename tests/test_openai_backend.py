@@ -79,6 +79,26 @@ def test_transcribe_passes_dictionary_prompt_when_terms_exist(tmp_path):
     )
 
 
+def test_transcribe_reads_dictionary_terms_from_provider(tmp_path):
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"RIFF")
+    client = FakeClient(text="x")
+    terms = ["ASIN"]
+    t = OpenAITranscriber(
+        api_key_provider=lambda: "sk-x",
+        model="gpt-4o-mini-transcribe",
+        dictionary_terms_provider=lambda: terms[-1],
+        client_factory=lambda api_key: client,
+    )
+
+    t.transcribe(wav, "auto")
+    assert client.audio.transcriptions.last_kwargs["prompt"].endswith("ASIN.")
+
+    terms.append("FNSKU")
+    t.transcribe(wav, "auto")
+    assert client.audio.transcriptions.last_kwargs["prompt"].endswith("FNSKU.")
+
+
 def test_transcribe_omits_dictionary_prompt_when_terms_are_blank(tmp_path):
     wav = tmp_path / "a.wav"
     wav.write_bytes(b"RIFF")

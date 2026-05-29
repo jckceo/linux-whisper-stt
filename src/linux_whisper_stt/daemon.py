@@ -19,6 +19,10 @@ DESKTOP_TOOL_PATHS = (
 )
 
 
+def load_dictionary_terms(config_loader=load_config) -> str:
+    return config_loader().dictionary.terms
+
+
 def augment_daemon_path(env=os.environ, path_exists=Path.exists) -> str:
     current_paths = [path for path in env.get("PATH", "").split(os.pathsep) if path]
     seen = set(current_paths)
@@ -47,7 +51,7 @@ def build_controller(config, indicator, run_async, popup_fn=None):
     openai_backend = OpenAITranscriber(
         api_key_provider=get_api_key,
         model=config.openai.model,
-        dictionary_terms=config.dictionary.terms,
+        dictionary_terms_provider=load_dictionary_terms,
     )
     from .transcribe.local_backend import LocalWhisperCppTranscriber
 
