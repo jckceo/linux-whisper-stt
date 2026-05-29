@@ -269,6 +269,15 @@ Disable auto-paste and use clipboard only:
 paste_mode = "clipboard_only"
 ```
 
+## Security Notes
+
+- `--with-autopaste` grants desktop input injection through `ydotool`.
+- `--with-local-whisper` downloads and builds third-party code from `whisper.cpp`.
+- OpenAI API keys are stored in the system keyring, not in TOML config.
+- Dictation history saves recorded WAV files and transcripts under
+  `~/.local/share/linux-whisper-stt/history` by default. Disable it with
+  `[history] enabled = false`.
+
 ## History
 
 When history is enabled, each dictation is saved as:
@@ -361,6 +370,23 @@ Run tests:
 ```
 
 The test suite covers config parsing, IPC, recorder behavior, OpenAI/local transcription wrappers, output delivery, GNOME shortcut registration, autostart, tray behavior, Settings, and history.
+
+## Known Limitations
+
+- GNOME/Wayland is primary supported desktop target.
+- Auto-paste depends on `/dev/uinput` access and may require logout/login.
+- Local Whisper setup can take several minutes because it builds `whisper.cpp`.
+
+## Roadmap
+
+- Debian package or pipx-friendly installer.
+- Better first-run diagnostics.
+- Optional screenshot/GIF in README after a real UI capture is available.
+- More desktop environment support.
+
+## Development Attribution
+
+Developed with Codex 5.5 xhigh.
 
 ## License
 
