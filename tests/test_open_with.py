@@ -10,15 +10,19 @@ from linux_whisper_stt.open_with import (
 def test_mime_types_include_common_audio_and_video_formats():
     types = mime_types()
 
+    assert "audio/vnd.wave" in types
     assert "audio/mpeg" in types
     assert "audio/wav" in types
     assert "audio/x-wav" in types
     assert "audio/flac" in types
     assert "audio/ogg" in types
     assert "audio/mp4" in types
+    assert "audio/x-matroska" in types
+    assert "audio/x-ms-wma" in types
     assert "video/mp4" in types
     assert "video/x-matroska" in types
     assert "video/x-msvideo" in types
+    assert "video/vnd.avi" in types
     assert "video/quicktime" in types
 
 
@@ -26,7 +30,10 @@ def test_desktop_entry_text_registers_transcribe_file_action():
     entry = desktop_entry_text("/opt/linux-whisper-stt/bin/linux-whisper-stt")
 
     assert "Name=Transcribe with linux-whisper-stt\n" in entry
-    assert "Exec=/opt/linux-whisper-stt/bin/linux-whisper-stt transcribe-file %f\n" in entry
+    assert (
+        "Exec=/opt/linux-whisper-stt/bin/linux-whisper-stt "
+        "transcribe-file %f --created-by open_with\n"
+    ) in entry
     assert "NoDisplay=true\n" in entry
     assert "Terminal=false\n" in entry
     assert "Categories=AudioVideo;Audio;Video;\n" in entry
@@ -37,9 +44,28 @@ def test_desktop_entry_text_registers_transcribe_file_action():
         assert f"{mime_type};" in mime_line
 
 
+def test_desktop_entry_text_quotes_entrypoint_with_spaces():
+    entry = desktop_entry_text(
+        "/home/me/My Projects/linux-whisper-stt/.venv/bin/linux-whisper-stt"
+    )
+
+    assert (
+        'Exec="/home/me/My Projects/linux-whisper-stt/.venv/bin/linux-whisper-stt" '
+        "transcribe-file %f --created-by open_with\n"
+    ) in entry
+
+
 def test_install_open_with_writes_desktop_file(tmp_path):
     path = install_open_with("linux-whisper-stt", applications_dir=tmp_path)
 
     assert path == tmp_path / "linux-whisper-stt-transcribe.desktop"
     assert path.read_text() == desktop_entry_text("linux-whisper-stt")
     assert stat.S_IMODE(path.stat().st_mode) == 0o644
+
+
+def test_install_open_with_uses_xdg_data_home(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+
+    path = install_open_with("linux-whisper-stt")
+
+    assert path == tmp_path / "applications/linux-whisper-stt-transcribe.desktop"

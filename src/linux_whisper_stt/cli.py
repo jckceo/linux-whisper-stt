@@ -46,13 +46,15 @@ def start_daemon_background(popen_fn=subprocess.Popen):
     )
 
 
-def _run_transcribe_file(path: str) -> int:
+def _run_transcribe_file(path: str, created_by: str | None = None) -> int:
     media_path = Path(path).expanduser()
     if not media_path.exists():
         print(f"error: file does not exist: {media_path}")
         return 1
 
     payload = {"command": "transcribe-file", "path": str(media_path.resolve())}
+    if created_by:
+        payload["created_by"] = created_by
     try:
         resp = send_command(payload)
     except ConnectionError:
@@ -95,6 +97,7 @@ def main(argv: list[str] | None = None) -> int:
     daemon_p.add_argument("--dry-run", action="store_true")
     transcribe_file_p = sub.add_parser("transcribe-file")
     transcribe_file_p.add_argument("path")
+    transcribe_file_p.add_argument("--created-by")
 
     try:
         args, _ = parser.parse_known_args(argv)
@@ -106,7 +109,7 @@ def main(argv: list[str] | None = None) -> int:
     if command in REMOTE_COMMANDS:
         return _run_remote(command)
     if command == "transcribe-file":
-        return _run_transcribe_file(args.path)
+        return _run_transcribe_file(args.path, created_by=args.created_by)
     if command == "daemon":
         from .daemon import run_daemon
 

@@ -54,4 +54,5 @@ def test_install_script_registers_open_with_entry_after_editable_install():
     assert editable_install in text
     assert open_with_install in text
     assert text.index(editable_install) < text.index(open_with_install)
-    assert 'update-desktop-database "$HOME/.local/share/applications" || true' in text
+    assert 'APPLICATIONS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"' in text
+    assert 'update-desktop-database "$APPLICATIONS_DIR" || true' in text

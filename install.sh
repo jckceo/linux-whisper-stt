@@ -2,6 +2,7 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APPLICATIONS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 MODELS_DIR="$HOME/.local/share/linux-whisper-stt/models"
 WHISPER_DIR="$REPO_DIR/.whisper.cpp"
 WITH_AUTOPASTE=0
@@ -58,7 +59,7 @@ echo "==> Python venv (system-site-packages for PyGObject)"
 echo "==> Open With desktop entry"
 "$REPO_DIR/.venv/bin/linux-whisper-stt" install-open-with
 if command -v update-desktop-database >/dev/null 2>&1; then
-  update-desktop-database "$HOME/.local/share/applications" || true
+  update-desktop-database "$APPLICATIONS_DIR" || true
 fi
 
 if [ "$WITH_AUTOPASTE" = "1" ]; then

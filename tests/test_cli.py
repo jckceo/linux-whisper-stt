@@ -172,6 +172,27 @@ def test_transcribe_file_sends_resolved_ipc_path(monkeypatch, tmp_path):
     assert sent == [{"command": "transcribe-file", "path": str(media.resolve())}]
 
 
+def test_transcribe_file_sends_created_by_when_supplied(monkeypatch, tmp_path):
+    sent = []
+    media = tmp_path / "clip.mp3"
+    media.write_bytes(b"x")
+
+    def fake_send_command(payload):
+        sent.append(payload)
+        return {"accepted": True, "state": "transcribing"}
+
+    monkeypatch.setattr("linux_whisper_stt.cli.send_command", fake_send_command)
+
+    assert cli.main(["transcribe-file", str(media), "--created-by", "open_with"]) == 0
+    assert sent == [
+        {
+            "command": "transcribe-file",
+            "path": str(media),
+            "created_by": "open_with",
+        }
+    ]
+
+
 def test_transcribe_file_starts_daemon_then_retries(monkeypatch, tmp_path, capsys):
     calls = []
     media = tmp_path / "clip.mp3"

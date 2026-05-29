@@ -15,16 +15,20 @@ def mime_types() -> tuple[str, ...]:
         "audio/mpeg",
         "audio/ogg",
         "audio/opus",
+        "audio/vnd.wave",
         "audio/wav",
         "audio/webm",
         "audio/x-flac",
         "audio/x-m4a",
+        "audio/x-matroska",
+        "audio/x-ms-wma",
         "audio/x-wav",
         "video/mp2t",
         "video/mp4",
         "video/mpeg",
         "video/ogg",
         "video/quicktime",
+        "video/vnd.avi",
         "video/webm",
         "video/x-flv",
         "video/x-matroska",
@@ -33,13 +37,37 @@ def mime_types() -> tuple[str, ...]:
     )
 
 
+def _applications_dir() -> Path:
+    base = os.environ.get("XDG_DATA_HOME")
+    if base:
+        return Path(base) / "applications"
+    return Path(os.path.expanduser("~/.local/share/applications"))
+
+
+def _quote_exec_arg(arg: str) -> str:
+    escaped = (
+        arg.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("$", "\\$")
+        .replace("`", "\\`")
+        .replace("%", "%%")
+    )
+    reserved = set(' \t\n"\'\\><~|&;$*?#()`')
+    if any(char in reserved for char in arg):
+        return f'"{escaped}"'
+    return escaped
+
+
 def desktop_entry_text(entrypoint: str) -> str:
     mime_line = "".join(f"{mime_type};" for mime_type in mime_types())
+    exec_line = (
+        f"{_quote_exec_arg(entrypoint)} transcribe-file %f --created-by open_with"
+    )
     return f"""[Desktop Entry]
 Type=Application
 Name=Transcribe with linux-whisper-stt
 Comment=Transcribe audio and video files with linux-whisper-stt
-Exec={entrypoint} transcribe-file %f
+Exec={exec_line}
 MimeType={mime_line}
 NoDisplay=true
 Terminal=false
@@ -52,7 +80,7 @@ def install_open_with(
     applications_dir: Path | None = None,
 ) -> Path:
     if applications_dir is None:
-        applications_dir = Path(os.path.expanduser("~/.local/share/applications"))
+        applications_dir = _applications_dir()
     path = applications_dir / DESKTOP_FILENAME
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(desktop_entry_text(entrypoint))
