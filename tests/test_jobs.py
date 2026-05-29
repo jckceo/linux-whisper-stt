@@ -568,3 +568,36 @@ def test_build_openai_chunk_paths_exports_single_mp3_for_short_known_duration(
     assert captured["chunk_dir"] == tmp_path / "event" / "chunks"
     assert len(captured["chunks"]) == 1
     assert captured["chunks"][0].duration_seconds == 120.0
+
+
+def test_build_openai_chunk_paths_exports_single_mp3_for_zero_duration(
+    tmp_path, monkeypatch
+):
+    from linux_whisper_stt import jobs
+
+    audio_path = tmp_path / "event" / "audio.wav"
+    audio_path.parent.mkdir()
+    audio_path.write_bytes(b"RIFF")
+    exported = [tmp_path / "event" / "chunks" / "chunk-000.mp3"]
+    captured = {}
+
+    def fake_export_chunks(source, chunk_dir, chunks):
+        captured["source"] = source
+        captured["chunk_dir"] = chunk_dir
+        captured["chunks"] = chunks
+        return exported
+
+    monkeypatch.setattr(jobs, "export_chunks", fake_export_chunks)
+
+    chunk_paths = jobs.build_openai_chunk_paths(
+        audio_path,
+        duration_seconds=0.0,
+        event_dir=tmp_path / "event",
+    )
+
+    assert chunk_paths == exported
+    assert chunk_paths != [audio_path]
+    assert captured["source"] == audio_path
+    assert captured["chunk_dir"] == tmp_path / "event" / "chunks"
+    assert len(captured["chunks"]) == 1
+    assert captured["chunks"][0].duration_seconds == 0.0

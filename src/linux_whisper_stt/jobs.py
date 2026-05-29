@@ -36,7 +36,7 @@ def build_openai_chunk_paths(
     duration_seconds: float | None,
     event_dir: Path,
 ) -> list[Path]:
-    if not duration_seconds:
+    if duration_seconds is None:
         return [audio_path]
 
     estimated_bytes = estimate_mp3_bytes(duration_seconds)
