@@ -1,6 +1,11 @@
 from linux_whisper_stt.config import Config
 from linux_whisper_stt.controller import State
-from linux_whisper_stt.daemon import build_controller, make_ipc_handler
+from linux_whisper_stt.daemon import (
+    build_controller,
+    build_result_popup_fn,
+    make_ipc_handler,
+    schedule_result_popup,
+)
 from linux_whisper_stt.jobs import TranscriptionJobRunner
 
 
@@ -112,6 +117,44 @@ def test_build_controller_accepts_popup_fn(monkeypatch):
     controller.file_jobs.popup_fn(event)
 
     assert popups == [event]
+
+
+def test_schedule_result_popup_uses_launcher_on_idle():
+    event = object()
+    idle_callbacks = []
+    launched = []
+
+    result = schedule_result_popup(
+        event,
+        idle_add=idle_callbacks.append,
+        popup_launcher=launched.append,
+    )
+
+    assert result is None
+    assert launched == []
+    assert idle_callbacks[0]() is False
+    assert launched == [event]
+
+
+def test_build_result_popup_fn_defaults_to_subprocess_launcher(monkeypatch):
+    import linux_whisper_stt.ui.result_window
+
+    event = object()
+    idle_callbacks = []
+    launched = []
+    monkeypatch.setattr(
+        linux_whisper_stt.ui.result_window,
+        "show_result_window_in_subprocess",
+        launched.append,
+    )
+
+    popup_fn = build_result_popup_fn(idle_callbacks.append)
+    result = popup_fn(event)
+
+    assert result is None
+    assert launched == []
+    assert idle_callbacks[0]() is False
+    assert launched == [event]
 
 
 def test_structured_unknown_command_returns_error():

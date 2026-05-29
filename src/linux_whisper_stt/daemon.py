@@ -73,6 +73,30 @@ def build_controller(config, indicator, run_async, popup_fn=None):
     )
 
 
+def schedule_result_popup(event, idle_add, popup_launcher):
+    def show_popup():
+        popup_launcher(event)
+        return False
+
+    return idle_add(show_popup)
+
+
+def build_result_popup_fn(idle_add, popup_launcher=None):
+    if popup_launcher is None:
+        from .ui.result_window import show_result_window_in_subprocess
+
+        popup_launcher = show_result_window_in_subprocess
+
+    def popup_fn(event):
+        return schedule_result_popup(
+            event,
+            idle_add=idle_add,
+            popup_launcher=popup_launcher,
+        )
+
+    return popup_fn
+
+
 def make_ipc_handler(controller, idle_add):
     def handle(data: str) -> dict:
         structured = data.strip().startswith("{")
@@ -153,12 +177,9 @@ def run_daemon(dry_run: bool = False) -> int:
         indicator = PrintIndicator()
     else:
         from .tray.indicator import TrayIndicator
-        from .ui.result_window import show_result_window
 
         indicator = TrayIndicator()
-
-        def popup_fn(event):
-            return GLib.idle_add(lambda: show_result_window(event) or False)
+        popup_fn = build_result_popup_fn(GLib.idle_add)
 
     controller = build_controller(config, indicator, run_async, popup_fn=popup_fn)
     if not dry_run:
