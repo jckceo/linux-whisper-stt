@@ -80,21 +80,27 @@ def send_command(
 ) -> dict:
     path = Path(socket_path or runtime_socket_path())
     last_err: Exception | None = None
-    for _ in range(connect_retries):
+    for attempt in range(connect_retries):
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
             sock.connect(str(path))
         except FileNotFoundError as e:
-            # No socket file at all -> the daemon is not running. Fail fast.
+            # Daemon startup can race socket creation; retry when requested.
+            last_err = e
             sock.close()
-            raise ConnectionError(f"daemon not running at {path}") from e
+            if attempt < connect_retries - 1:
+                time.sleep(retry_delay)
+                continue
+            break
         except ConnectionRefusedError as e:
             # Socket exists but not yet accepting (daemon still starting, or the
             # bind-before-listen window). Retry briefly before giving up.
             last_err = e
             sock.close()
-            time.sleep(retry_delay)
-            continue
+            if attempt < connect_retries - 1:
+                time.sleep(retry_delay)
+                continue
+            break
         try:
             sock.sendall((encode_message(command) + "\n").encode("utf-8"))
             data = sock.recv(65536).decode("utf-8").strip()

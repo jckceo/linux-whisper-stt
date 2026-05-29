@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .assets import asset_path
 from .config import load_config
-from .controller import Controller
+from .controller import Controller, State
 from .ipc import IPCServer, parse_message
 from .secrets import get_api_key
 from .sounds import Sounds
@@ -42,8 +42,34 @@ def build_controller(config, indicator, run_async):
     from .history import HistoryStore
 
     history = HistoryStore(config)
+    from .jobs import TranscriptionJobRunner
+    from .output.clipboard import copy_to_clipboard
+
+    def report_job_progress(progress):
+        detail = getattr(progress, "detail", "")
+        if getattr(progress, "state", "") == "failed":
+            indicator.set_state(State.ERROR, detail)
+        else:
+            indicator.set_state(State.TRANSCRIBING, detail)
+
+    file_jobs = TranscriptionJobRunner(
+        config=config,
+        history=history,
+        backends=backends,
+        copy_fn=copy_to_clipboard,
+        popup_fn=lambda _event: None,
+        progress_fn=report_job_progress,
+    )
     return Controller(
-        recorder, transcription, output, indicator, sounds, config, run_async, history
+        recorder,
+        transcription,
+        output,
+        indicator,
+        sounds,
+        config,
+        run_async=run_async,
+        history=history,
+        file_jobs=file_jobs,
     )
 
 

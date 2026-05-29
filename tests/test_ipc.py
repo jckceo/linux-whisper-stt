@@ -39,3 +39,32 @@ def test_send_command_without_server_raises(tmp_path):
 
     with pytest.raises(ConnectionError):
         send_command("toggle", socket_path=tmp_path / "absent.sock")
+
+
+def test_send_command_retries_missing_socket(monkeypatch, tmp_path):
+    import pytest
+
+    attempts = []
+
+    class FakeSocket:
+        def connect(self, path):
+            attempts.append(path)
+            raise FileNotFoundError(path)
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        "linux_whisper_stt.ipc.socket.socket", lambda *_args, **_kwargs: FakeSocket()
+    )
+    monkeypatch.setattr("linux_whisper_stt.ipc.time.sleep", lambda _seconds: None)
+
+    with pytest.raises(ConnectionError):
+        send_command(
+            "toggle",
+            socket_path=tmp_path / "absent.sock",
+            connect_retries=2,
+            retry_delay=0,
+        )
+
+    assert len(attempts) == 2
