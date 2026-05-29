@@ -15,7 +15,8 @@ Linux desktop dictation with a global shortcut, tray indicator, OpenAI or local 
 - Auto-paste on Wayland through clipboard paste via `ydotool`
 - Clipboard fallback through `wl-copy`
 - Autostart at login through a desktop entry
-- Per-dictation history with the recorded WAV and transcribed text
+- Local audio and video file transcription from the tray, CLI, or file manager
+- Per-event history with the recorded WAV/audio file and transcribed text
 
 ## Platform
 
@@ -63,7 +64,9 @@ The installer:
 3. Installs this package in editable mode.
 4. Optionally installs and enables a user `ydotoold` systemd service when `--with-autopaste` is passed.
 5. Optionally builds `whisper.cpp` and downloads the `small` model for local transcription when `--with-local-whisper` is passed.
-6. Writes an autostart file to `~/.config/autostart/linux-whisper-stt.desktop`.
+6. Registers an Open With desktop entry for audio/video files and refreshes the
+   desktop database when `update-desktop-database` is available.
+7. Writes an autostart file to `~/.config/autostart/linux-whisper-stt.desktop`.
 
 If you enabled auto-paste, log out and back in once so group permissions for `ydotool` apply.
 
@@ -145,8 +148,26 @@ The tray menu includes:
 | --- | --- |
 | Status | Shows idle, recording, transcribing, pasting, or error |
 | Start / Stop recording | Toggles dictation |
+| Transcribe file... | Chooses a local audio or video file to transcribe |
 | Settings... | Opens one Settings window |
 | Quit | Stops the tray process |
+
+## File Transcription
+
+Transcribe local media files from the tray menu with `Transcribe file...`, from
+the file manager with `Open With -> Transcribe with linux-whisper-stt`, or from
+the CLI with `transcribe-file <path>`.
+
+File transcription uses the current Settings engine and language. When it
+finishes, the final transcript is copied to the clipboard and shown in a popup.
+Unlike shortcut dictation, file transcription is not auto-pasted into the active
+app.
+
+Audio and video inputs are normalized with `ffmpeg` before transcription. For
+video files, history stores the extracted audio only, not a copy of the original
+video. OpenAI transcription uploads are limited to 25 MB per file, so long
+OpenAI jobs are split into upload-safe chunks, each chunk is transcribed, and
+the chunk transcripts are merged into one text.
 
 ## CLI
 
@@ -161,6 +182,8 @@ Use `.venv/bin/linux-whisper-stt <command>` from the repository:
 | `stop` | Stop recording |
 | `status` | Print daemon state and last error |
 | `setup` | Open the Settings window |
+| `transcribe-file <path>` | Queue a local audio or video file for transcription |
+| `install-open-with` | Register the file manager Open With desktop entry |
 | `install-service` | Install and start the systemd user service |
 | `uninstall-service` | Stop and remove the systemd user service |
 
@@ -277,18 +300,28 @@ paste_mode = "clipboard_only"
 - `--with-autopaste` grants desktop input injection through `ydotool`.
 - `--with-local-whisper` downloads and builds third-party code from `whisper.cpp`.
 - OpenAI API keys are stored in the system keyring, not in TOML config.
-- Dictation history saves recorded WAV files and transcripts under
-  `~/.local/share/linux-whisper-stt/history` by default. Disable it with
+- History saves each completed event under
+  `~/.local/share/linux-whisper-stt/history` by default, including the
+  transcripts and a recorded WAV/audio file managed by the app. Disable it with
   `[history] enabled = false`.
 
 ## History
 
-When history is enabled, each dictation is saved as:
+History is available in `Settings -> History`.
+
+When history is enabled, each completed event is stored in its own app-managed
+directory:
 
 ```text
-~/.local/share/linux-whisper-stt/history/YYYYMMDD-HHMMSS.wav
-~/.local/share/linux-whisper-stt/history/YYYYMMDD-HHMMSS.txt
+~/.local/share/linux-whisper-stt/history/<event-id>/event.json
+~/.local/share/linux-whisper-stt/history/<event-id>/audio.wav
+~/.local/share/linux-whisper-stt/history/<event-id>/transcript.txt
 ```
+
+The event metadata records where the transcript came from, the engine, model,
+language, status, duration, and original file name when applicable. Each
+completed event stores the transcript and a complete app-managed audio file.
+For video transcription events, that audio file is the extracted audio track.
 
 Disable it:
 

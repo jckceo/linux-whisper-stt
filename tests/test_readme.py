@@ -34,6 +34,16 @@ def test_readme_documents_optional_installer_flags():
     assert "--with-local-whisper" in readme
 
 
+def test_readme_documents_file_transcription_and_history():
+    readme = (ROOT / "README.md").read_text()
+
+    assert "Transcribe file" in readme
+    assert "Open With" in readme
+    assert "History" in readme
+    assert "25 MB" in readme
+    assert "video" in readme
+
+
 def test_security_reporting_has_actionable_github_channel():
     security = (ROOT / "SECURITY.md").read_text()
     reporting = _section(security, "## Reporting Security Issues")
