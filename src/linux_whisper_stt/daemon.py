@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import threading
 import time
 from pathlib import Path
@@ -10,6 +11,25 @@ from .controller import Controller, State
 from .ipc import IPCServer, parse_message
 from .secrets import get_api_key
 from .sounds import Sounds
+
+DESKTOP_TOOL_PATHS = (
+    "/home/linuxbrew/.linuxbrew/bin",
+    "/usr/local/bin",
+    "/opt/homebrew/bin",
+)
+
+
+def augment_daemon_path(env=os.environ, path_exists=Path.exists) -> str:
+    current_paths = [path for path in env.get("PATH", "").split(os.pathsep) if path]
+    seen = set(current_paths)
+    for path in DESKTOP_TOOL_PATHS:
+        if path in seen:
+            continue
+        if path_exists(Path(path)):
+            current_paths.append(path)
+            seen.add(path)
+    env["PATH"] = os.pathsep.join(current_paths)
+    return env["PATH"]
 
 
 def build_controller(config, indicator, run_async, popup_fn=None):
@@ -170,6 +190,8 @@ def make_ipc_handler(controller, idle_add, request_timeout: float = 5):
 
 
 def run_daemon(dry_run: bool = False) -> int:
+    augment_daemon_path()
+
     import gi
 
     gi.require_version("Gtk", "3.0")

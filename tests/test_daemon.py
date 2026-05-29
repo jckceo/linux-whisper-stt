@@ -1,6 +1,7 @@
 from linux_whisper_stt.config import Config
 from linux_whisper_stt.controller import State
 from linux_whisper_stt.daemon import (
+    augment_daemon_path,
     build_controller,
     build_result_popup_fn,
     make_ipc_handler,
@@ -27,6 +28,40 @@ class FakeHistoryStore:
 
     def mark_stale_processing_failed(self):
         self.marked_stale_failed = True
+
+
+def test_augment_daemon_path_appends_existing_desktop_tool_dirs():
+    env = {"PATH": "/usr/bin:/bin"}
+    existing = {"/home/linuxbrew/.linuxbrew/bin", "/opt/homebrew/bin"}
+
+    augment_daemon_path(env, path_exists=lambda path: str(path) in existing)
+
+    assert env["PATH"] == (
+        "/usr/bin:/bin:/home/linuxbrew/.linuxbrew/bin:/opt/homebrew/bin"
+    )
+
+
+def test_augment_daemon_path_avoids_duplicates_and_preserves_existing_order():
+    env = {"PATH": "/usr/local/bin:/usr/bin:/home/linuxbrew/.linuxbrew/bin"}
+    existing = {
+        "/home/linuxbrew/.linuxbrew/bin",
+        "/usr/local/bin",
+        "/opt/homebrew/bin",
+    }
+
+    augment_daemon_path(env, path_exists=lambda path: str(path) in existing)
+
+    assert env["PATH"] == (
+        "/usr/local/bin:/usr/bin:/home/linuxbrew/.linuxbrew/bin:/opt/homebrew/bin"
+    )
+
+
+def test_augment_daemon_path_handles_missing_path():
+    env = {}
+
+    augment_daemon_path(env, path_exists=lambda path: str(path) == "/usr/local/bin")
+
+    assert env["PATH"] == "/usr/local/bin"
 
 
 def patch_build_controller_components(monkeypatch, history_factory=None):
