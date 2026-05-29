@@ -1,4 +1,5 @@
 from linux_whisper_stt.autostart import (
+    autostart_enabled,
     autostart_path,
     install_autostart,
     uninstall_autostart,
@@ -38,3 +39,40 @@ def test_uninstall_autostart_ignores_missing_file(tmp_path, monkeypatch):
 
     assert removed == p
     assert not p.exists()
+
+
+def test_autostart_enabled_false_when_desktop_file_is_missing(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    assert autostart_enabled() is False
+
+
+def test_autostart_enabled_true_after_install(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    install_autostart()
+
+    assert autostart_enabled() is True
+
+
+def test_autostart_enabled_false_after_uninstall(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    install_autostart()
+
+    uninstall_autostart()
+
+    assert autostart_enabled() is False
+
+
+def test_autostart_enabled_false_when_content_does_not_match(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    path = autostart_path()
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        "[Desktop Entry]\n"
+        "Type=Application\n"
+        "Exec=/usr/bin/other daemon\n"
+        "X-GNOME-Autostart-enabled=false\n"
+    )
+
+    assert autostart_enabled() is False

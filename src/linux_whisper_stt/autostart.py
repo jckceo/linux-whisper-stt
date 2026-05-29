@@ -34,3 +34,15 @@ def uninstall_autostart() -> Path:
     path = autostart_path()
     path.unlink(missing_ok=True)
     return path
+
+
+def autostart_enabled() -> bool:
+    path = autostart_path()
+    try:
+        content = path.read_text()
+    except OSError:
+        return False
+    return (
+        "X-GNOME-Autostart-enabled=true" in content
+        and f"Exec={entrypoint()} daemon" in content
+    )

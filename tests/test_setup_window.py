@@ -1,7 +1,7 @@
 from linux_whisper_stt.ui.setup_window import (
+    apply_startup_preference,
     build_window_shell,
     present_existing_window,
-    save_startup_default,
 )
 
 
@@ -34,29 +34,59 @@ def test_present_existing_window_allows_first_window_creation():
     assert present_existing_window(Application()) is False
 
 
-def test_save_startup_default_installs_autostart_when_service_is_missing():
+def test_apply_startup_preference_installs_when_enabled_and_service_is_missing():
     calls = []
 
     def fake_install():
         calls.append("install")
 
-    mode = save_startup_default(
+    def fake_uninstall():
+        calls.append("uninstall")
+
+    mode = apply_startup_preference(
+        True,
         install_fn=fake_install,
+        uninstall_fn=fake_uninstall,
         service_installed_fn=lambda: False,
     )
 
-    assert mode == "autostart"
+    assert mode == "enabled"
     assert calls == ["install"]
 
 
-def test_save_startup_default_uses_systemd_when_service_is_installed():
+def test_apply_startup_preference_uninstalls_when_disabled_and_service_is_missing():
     calls = []
 
     def fake_install():
         calls.append("install")
 
-    mode = save_startup_default(
+    def fake_uninstall():
+        calls.append("uninstall")
+
+    mode = apply_startup_preference(
+        False,
         install_fn=fake_install,
+        uninstall_fn=fake_uninstall,
+        service_installed_fn=lambda: False,
+    )
+
+    assert mode == "disabled"
+    assert calls == ["uninstall"]
+
+
+def test_apply_startup_preference_uses_systemd_when_service_is_installed():
+    calls = []
+
+    def fake_install():
+        calls.append("install")
+
+    def fake_uninstall():
+        calls.append("uninstall")
+
+    mode = apply_startup_preference(
+        True,
+        install_fn=fake_install,
+        uninstall_fn=fake_uninstall,
         service_installed_fn=lambda: True,
     )
 

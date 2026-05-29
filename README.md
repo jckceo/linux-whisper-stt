@@ -73,7 +73,10 @@ Then open Settings:
 .venv/bin/linux-whisper-stt setup
 ```
 
-Settings lets you save your OpenAI API key, choose the transcription engine, set the language, and register the GNOME shortcut.
+Settings lets you save your OpenAI API key, choose the transcription engine, set
+the language, register the GNOME shortcut, and control the `Start on startup`
+switch. Turning it on writes the desktop autostart entry; turning it off removes
+that entry.
 
 ## Start The App
 
@@ -100,7 +103,8 @@ Install and start the daemon as a systemd user service:
 Installing the systemd user service removes the desktop autostart entry at
 `~/.config/autostart/linux-whisper-stt.desktop` to avoid running duplicate
 daemons. Use either Settings autostart or the systemd service, but not both at
-the same time.
+the same time. If the systemd user service is installed, startup is managed by
+that service and Settings will not create a duplicate desktop autostart entry.
 
 Follow service logs:
 

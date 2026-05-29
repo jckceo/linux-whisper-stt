@@ -25,16 +25,25 @@ def build_window_shell(Adw, Gtk, win, content):
     return toolbar
 
 
-def save_startup_default(install_fn=None, service_installed_fn=None):
-    from ..autostart import install_autostart
+def apply_startup_preference(
+    enabled: bool,
+    install_fn=None,
+    uninstall_fn=None,
+    service_installed_fn=None,
+):
+    from ..autostart import install_autostart, uninstall_autostart
     from ..systemd import service_installed
 
     install_fn = install_fn or install_autostart
+    uninstall_fn = uninstall_fn or uninstall_autostart
     service_installed_fn = service_installed_fn or service_installed
     if service_installed_fn():
         return "systemd"
-    install_fn()
-    return "autostart"
+    if enabled:
+        install_fn()
+        return "enabled"
+    uninstall_fn()
+    return "disabled"
 
 
 def run_setup() -> int:
@@ -44,9 +53,11 @@ def run_setup() -> int:
     gi.require_version("Adw", "1")
     from gi.repository import Adw, Gtk
 
+    from ..autostart import autostart_enabled
     from ..config import load_config, save_config
     from ..gnome_shortcut import register_shortcut
     from ..secrets import get_api_key, set_api_key
+    from ..systemd import service_installed
 
     config = load_config()
 
@@ -90,6 +101,18 @@ def run_setup() -> int:
         shortcut_entry = Gtk.Entry(text=config.shortcut.binding)
         box.append(shortcut_entry)
 
+        startup_service_installed = service_installed()
+        startup_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        startup_label = Gtk.Label(label="Start on startup", xalign=0)
+        startup_label.set_hexpand(True)
+        startup_row.append(startup_label)
+        startup_switch = Gtk.Switch()
+        startup_switch.set_active(startup_service_installed or autostart_enabled())
+        if startup_service_installed:
+            startup_switch.set_sensitive(False)
+        startup_row.append(startup_switch)
+        box.append(startup_row)
+
         status = Gtk.Label(label="", xalign=0)
 
         def on_save(_btn):
@@ -102,13 +125,19 @@ def run_setup() -> int:
                 config.shortcut.binding = shortcut_entry.get_text().strip() or "<Control><Alt>space"
                 save_config(config)
                 register_shortcut(config.shortcut.binding)
-                startup_mode = save_startup_default()
+                startup_mode = apply_startup_preference(startup_switch.get_active())
                 if startup_mode == "systemd":
                     status.set_text(
                         "Saved. Shortcut registered. Startup is managed by systemd service."
                     )
+                elif startup_mode == "enabled":
+                    status.set_text(
+                        "Saved. Shortcut registered. Start on startup enabled."
+                    )
                 else:
-                    status.set_text("Saved. Shortcut registered. Autostart enabled.")
+                    status.set_text(
+                        "Saved. Shortcut registered. Start on startup disabled."
+                    )
             except Exception as e:
                 status.set_text(f"Error: {e}")
 
