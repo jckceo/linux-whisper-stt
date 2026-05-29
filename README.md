@@ -259,13 +259,12 @@ model = "gpt-4o-mini-transcribe"
 
 Use `Settings -> Dictionary` to add product names, acronyms, marketplace terms,
 or other words that should keep a specific spelling. Entries can be comma
-separated or written on separate lines. For OpenAI transcription the app sends
-those entries as the transcription `prompt`, so terms such as `ASIN`, `SKU`,
-`FNSKU`, `FBA`, or `reimbursement adjustments` are more likely to be preserved
-correctly. The daemon reads the saved Dictionary for each new OpenAI
-transcription, so saving Dictionary changes does not require a daemon restart.
-The local `whisper.cpp` engine keeps the setting in config but does not
-currently use it.
+separated or one per line. For OpenAI transcription the app sends those entries
+as the transcription `prompt`, so terms such as `ASIN`, `SKU`, `FNSKU`, `FBA`,
+or `reimbursement adjustments` are more likely to be preserved correctly. The
+daemon reads the saved Dictionary for each new OpenAI transcription, so saving
+Dictionary changes does not require a daemon restart. The local `whisper.cpp`
+engine keeps the setting in config but does not currently use it.
 
 ### Local whisper.cpp
 

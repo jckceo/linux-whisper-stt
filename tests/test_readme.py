@@ -66,6 +66,7 @@ def test_readme_documents_dictionary_glossary():
     assert "terms" in configuration
     assert "Settings -> Dictionary" in engines
     assert "prompt" in engines
+    assert "comma separated or one per line" in " ".join(engines.split())
 
 
 def test_security_reporting_has_actionable_github_channel():

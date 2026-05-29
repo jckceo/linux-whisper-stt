@@ -151,6 +151,10 @@ def test_build_history_tab_selects_copies_opens_and_deletes_event():
     assert store.deleted == ["evt-1"]
 
 
+def test_history_list_width_is_wide_enough_for_datetime_but_not_dominant():
+    assert 240 <= HISTORY_LIST_MIN_WIDTH <= 280
+
+
 def test_build_history_tab_disables_and_ignores_delete_for_legacy_event():
     event = Event(id="legacy", legacy=True)
     store = FakeHistoryStore([event])

@@ -4,7 +4,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-HISTORY_LIST_MIN_WIDTH = 320
+HISTORY_LIST_MIN_WIDTH = 260
 
 _AUDIO_OPEN_COMMANDS = (
     ("pw-play", lambda path: ["pw-play", path]),

@@ -1,10 +1,12 @@
 from linux_whisper_stt.ui.setup_window import (
     apply_startup_preference,
     build_window_shell,
+    dictionary_help_text,
     paste_mode_from_auto_paste,
     present_existing_window,
     read_text_buffer,
     settings_tab_labels,
+    shortcut_tooltip_text,
 )
 
 
@@ -116,6 +118,22 @@ def test_read_text_buffer_returns_full_text():
             return "ASIN, FNSKU"
 
     assert read_text_buffer(Buffer()) == "ASIN, FNSKU"
+
+
+def test_dictionary_help_text_explains_format_and_effect():
+    text = dictionary_help_text()
+
+    assert "comma" in text
+    assert "one per line" in text
+    assert "OpenAI" in text
+    assert "ASIN" in text
+
+
+def test_shortcut_tooltip_text_mentions_gtk_binding_format():
+    text = shortcut_tooltip_text()
+
+    assert "<Control><Alt>w" in text
+    assert "save" in text.lower()
 
 
 def test_build_window_shell_adds_close_button():

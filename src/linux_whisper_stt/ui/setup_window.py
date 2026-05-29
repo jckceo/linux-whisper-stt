@@ -29,6 +29,18 @@ def settings_tab_labels() -> list[str]:
     return ["General", "Dictionary", "History"]
 
 
+def dictionary_help_text() -> str:
+    return (
+        "Add domain terms that OpenAI should preserve during transcription. "
+        "Use comma separated entries or one per line, for example: "
+        "ASIN, SKU, FNSKU, FBA, reimbursement adjustments."
+    )
+
+
+def shortcut_tooltip_text() -> str:
+    return "Use GTK shortcut syntax, for example <Control><Alt>w, then save."
+
+
 def read_text_buffer(buffer) -> str:
     start, end = buffer.get_bounds()
     return buffer.get_text(start, end, False)
@@ -117,6 +129,7 @@ def run_setup() -> int:
         # Shortcut
         general_box.append(Gtk.Label(label="Shortcut", xalign=0))
         shortcut_entry = Gtk.Entry(text=config.shortcut.binding)
+        shortcut_entry.set_tooltip_text(shortcut_tooltip_text())
         general_box.append(shortcut_entry)
 
         auto_paste_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -149,6 +162,9 @@ def run_setup() -> int:
         dictionary_box.set_margin_end(18)
 
         dictionary_box.append(Gtk.Label(label="Dictionary", xalign=0))
+        dictionary_help = Gtk.Label(label=dictionary_help_text(), xalign=0)
+        dictionary_help.set_wrap(True)
+        dictionary_box.append(dictionary_help)
         dictionary_buffer = Gtk.TextBuffer()
         dictionary_buffer.set_text(config.dictionary.terms)
         dictionary_view = Gtk.TextView(buffer=dictionary_buffer)
