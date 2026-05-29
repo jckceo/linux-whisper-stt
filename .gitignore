@@ -6,7 +6,7 @@ __pycache__/
 dist/
 build/
 
-# Local Claude Code config and internal planning docs (kept out of the repo)
+# Local agent config and internal planning docs (kept out of the repo)
 .claude/
 .superpowers/
-docs/
+docs/superpowers/
