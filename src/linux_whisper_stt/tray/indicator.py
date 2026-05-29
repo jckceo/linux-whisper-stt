@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import subprocess
 
-from ..cli import entrypoint
 from ..assets import asset_path
+from ..cli import entrypoint
 from ..controller import State
 
 _ICON_NAMES = {
@@ -102,7 +102,8 @@ class TrayIndicator:
         self._GLib.idle_add(self._apply_state, state, detail)
 
     def _apply_state(self, state: State, detail: str):
-        self.indicator.set_icon_full(str(asset_path("icons", icon_for_state(state) + ".png")), state.value)
+        icon_path = asset_path("icons", icon_for_state(state) + ".png")
+        self.indicator.set_icon_full(str(icon_path), state.value)
         label = state.value.capitalize()
         if detail:
             label += f" — {detail}"

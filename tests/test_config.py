@@ -1,4 +1,3 @@
-from pathlib import Path
 
 from linux_whisper_stt.config import Config, load_config, save_config
 

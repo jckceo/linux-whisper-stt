@@ -1,5 +1,5 @@
 from linux_whisper_stt.config import Config
-from linux_whisper_stt.output.manager import DeliveryResult, OutputManager
+from linux_whisper_stt.output.manager import OutputManager
 
 
 def make_manager(paste_mode="auto", available=True, paste_raises=False):

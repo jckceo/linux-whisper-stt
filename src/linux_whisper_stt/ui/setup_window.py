@@ -32,9 +32,9 @@ def run_setup() -> int:
     gi.require_version("Adw", "1")
     from gi.repository import Adw, Gtk
 
+    from ..autostart import install_autostart
     from ..config import load_config, save_config
     from ..gnome_shortcut import register_shortcut
-    from ..autostart import install_autostart
     from ..secrets import get_api_key, set_api_key
 
     config = load_config()
@@ -50,8 +50,10 @@ def run_setup() -> int:
         win.set_default_size(460, 360)
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        box.set_margin_top(18); box.set_margin_bottom(18)
-        box.set_margin_start(18); box.set_margin_end(18)
+        box.set_margin_top(18)
+        box.set_margin_bottom(18)
+        box.set_margin_start(18)
+        box.set_margin_end(18)
 
         # API key
         box.append(Gtk.Label(label="OpenAI API key", xalign=0))

@@ -5,8 +5,8 @@ import os
 import socket
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 
 def runtime_socket_path() -> Path:
@@ -35,7 +35,7 @@ class IPCServer:
         while self._running:
             try:
                 conn, _ = self._sock.accept()
-            except socket.timeout:
+            except TimeoutError:
                 continue
             except OSError:
                 break

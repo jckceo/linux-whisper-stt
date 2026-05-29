@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 
+
 def ydotool_available(which=shutil.which) -> bool:
     return which("ydotool") is not None
 

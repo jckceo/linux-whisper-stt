@@ -1,5 +1,7 @@
 # linux-whisper-stt
 
+[![tests](https://github.com/jckceo/linux-whisper-stt/actions/workflows/tests.yml/badge.svg)](https://github.com/jckceo/linux-whisper-stt/actions/workflows/tests.yml)
+
 Linux desktop dictation with a global shortcut, tray indicator, OpenAI or local Whisper transcription, and Wayland-friendly auto-paste.
 
 `linux-whisper-stt` is a SuperWhisper-style tool for GNOME. Press a shortcut once to start recording, press it again to stop, and the app transcribes your speech and types the result into the active window.

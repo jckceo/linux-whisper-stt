@@ -61,7 +61,7 @@ class Config:
     history: HistoryConfig = field(default_factory=HistoryConfig)
 
     @classmethod
-    def from_dict(cls, data: dict) -> "Config":
+    def from_dict(cls, data: dict) -> Config:
         return cls(
             general=_build(GeneralConfig, data.get("general", {})),
             shortcut=_build(ShortcutConfig, data.get("shortcut", {})),

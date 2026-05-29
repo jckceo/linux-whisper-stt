@@ -30,7 +30,7 @@ class LocalWhisperCppTranscriber:
         self.runner = runner
 
     @classmethod
-    def from_config(cls, config) -> "LocalWhisperCppTranscriber":
+    def from_config(cls, config) -> LocalWhisperCppTranscriber:
         binary = config.local.binary_path or (shutil.which("whisper-cli") or "whisper-cli")
         models_dir = Path(os.path.expanduser(config.local.models_dir))
         model_path = models_dir / f"ggml-{config.local.model}.bin"
