@@ -21,6 +21,7 @@ def make_manager(paste_mode="auto", available=True, paste_raises=False):
         copy_fn=copy_fn,
         paste_fn=paste_fn,
         available_fn=lambda: available,
+        wait_for_clipboard_fn=lambda text: True,
     )
     return mgr, copied, pasted
 
@@ -56,3 +57,25 @@ def test_paste_failure_falls_back_gracefully():
     assert copied == ["hello"]
     assert result.pasted is False
     assert "Ctrl+V" in result.message
+
+
+def test_auto_does_not_paste_until_clipboard_contains_new_text():
+    cfg = Config()
+    cfg.general.paste_mode = "auto"
+    copied = []
+    pasted = []
+
+    mgr = OutputManager(
+        cfg,
+        copy_fn=copied.append,
+        paste_fn=pasted.append,
+        available_fn=lambda: True,
+        wait_for_clipboard_fn=lambda text: False,
+    )
+
+    result = mgr.deliver("hello")
+
+    assert copied == ["hello"]
+    assert pasted == []
+    assert result.pasted is False
+    assert "clipboard did not update" in result.message

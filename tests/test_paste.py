@@ -26,7 +26,18 @@ def test_paste_uses_delayed_clipboard_paste_shortcut():
     assert sleeps == [0.15]
     assert calls == [
         (
-            ["ydotool", "key", "29:0", "56:0", "97:0", "100:0"],
+            [
+                "ydotool",
+                "key",
+                "29:0",
+                "56:0",
+                "97:0",
+                "100:0",
+                "42:0",
+                "54:0",
+                "125:0",
+                "126:0",
+            ],
             {"check": False},
         ),
         (

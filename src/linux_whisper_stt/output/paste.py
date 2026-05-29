@@ -4,7 +4,16 @@ import shutil
 import subprocess
 import time
 
-RELEASE_SHORTCUT_MODIFIERS = ["29:0", "56:0", "97:0", "100:0"]
+RELEASE_SHORTCUT_MODIFIERS = [
+    "29:0",
+    "56:0",
+    "97:0",
+    "100:0",
+    "42:0",
+    "54:0",
+    "125:0",
+    "126:0",
+]
 CTRL_V_SEQUENCE = ["29:1", "47:1", "47:0", "29:0"]
 
 
