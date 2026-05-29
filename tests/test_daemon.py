@@ -157,6 +157,42 @@ def test_build_result_popup_fn_defaults_to_subprocess_launcher(monkeypatch):
     assert launched == [event]
 
 
+def test_transcribe_file_timeout_cancels_queued_idle_callback():
+    queued_callbacks = []
+
+    class Controller:
+        def __init__(self):
+            self.started = []
+
+        def transcribe_file(self, path, created_by):
+            self.started.append((path, created_by))
+            return {"accepted": True, "state": "transcribing"}
+
+        def status(self):
+            return {"state": "idle"}
+
+    controller = Controller()
+    handler = make_ipc_handler(
+        controller,
+        idle_add=queued_callbacks.append,
+        request_timeout=0,
+    )
+
+    result = handler(
+        '{"command": "transcribe-file", "path": "/tmp/audio.mp3", "created_by": "cli"}'
+    )
+
+    assert result == {
+        "accepted": False,
+        "state": "idle",
+        "error": "request timed out",
+    }
+    assert controller.started == []
+    assert len(queued_callbacks) == 1
+    assert queued_callbacks[0]() is False
+    assert controller.started == []
+
+
 def test_structured_unknown_command_returns_error():
     class Controller:
         def status(self):

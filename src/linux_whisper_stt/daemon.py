@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from pathlib import Path
 
 from .assets import asset_path
@@ -97,7 +98,7 @@ def build_result_popup_fn(idle_add, popup_launcher=None):
     return popup_fn
 
 
-def make_ipc_handler(controller, idle_add):
+def make_ipc_handler(controller, idle_add, request_timeout: float = 5):
     def handle(data: str) -> dict:
         structured = data.strip().startswith("{")
         payload = parse_message(data)
@@ -122,9 +123,13 @@ def make_ipc_handler(controller, idle_add):
         elif command == "transcribe-file":
             done = threading.Event()
             result = {}
+            cancelled = threading.Event()
+            deadline = time.monotonic() + request_timeout
 
             def apply():
                 try:
+                    if cancelled.is_set() or time.monotonic() >= deadline:
+                        return False
                     result.update(
                         controller.transcribe_file(
                             Path(payload["path"]),
@@ -144,7 +149,8 @@ def make_ipc_handler(controller, idle_add):
                 return False
 
             idle_add(apply)
-            if not done.wait(timeout=5):
+            if not done.wait(timeout=request_timeout):
+                cancelled.set()
                 return {
                     "accepted": False,
                     "state": controller.status().get("state", "?"),

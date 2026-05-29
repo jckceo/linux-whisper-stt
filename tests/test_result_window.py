@@ -1,6 +1,9 @@
 from linux_whisper_stt.history import HistoryEvent
 from linux_whisper_stt.ui.result_window import (
+    copy_result_text,
+    open_history_from_popup,
     popup_title_for_event,
+    reap_process_nonblocking,
     result_window_subprocess_command,
     show_result_window_in_subprocess,
 )
@@ -82,6 +85,7 @@ def test_show_result_window_in_subprocess_serializes_event():
         event,
         popen_fn=popen_fn,
         command_fn=lambda: ["/abs/python", "-m", "linux_whisper_stt.ui.result_window"],
+        reap_fn=lambda _process: None,
     )
 
     assert result is fake_process
@@ -93,3 +97,70 @@ def test_show_result_window_in_subprocess_serializes_event():
     assert '"original_name": "meeting.mp3"' in fake_process.stdin.text
     assert '"transcript_text": "hello"' in fake_process.stdin.text
     assert fake_process.stdin.closed
+
+
+def test_show_result_window_in_subprocess_reaps_process():
+    event = HistoryEvent(
+        id="1",
+        created_at="2026-05-29T10:00:00",
+        source_type="audio_file",
+        status="completed",
+        created_by="tray",
+    )
+
+    class FakeStdin:
+        def write(self, _text):
+            pass
+
+        def close(self):
+            pass
+
+    class FakeProcess:
+        def __init__(self):
+            self.stdin = FakeStdin()
+            self.waited = False
+
+        def wait(self):
+            self.waited = True
+
+    fake_process = FakeProcess()
+
+    class FakeThread:
+        def __init__(self, *, target, daemon):
+            self.target = target
+            self.daemon = daemon
+
+        def start(self):
+            self.target()
+
+    show_result_window_in_subprocess(
+        event,
+        popen_fn=lambda *_args, **_kwargs: fake_process,
+        command_fn=lambda: ["/abs/python", "-m", "linux_whisper_stt.ui.result_window"],
+        reap_fn=lambda process: reap_process_nonblocking(
+            process, thread_factory=FakeThread
+        ),
+    )
+
+    assert fake_process.waited
+
+
+def test_open_history_from_popup_launches_settings():
+    launched = []
+
+    result = open_history_from_popup(
+        "event-1",
+        popen_fn=lambda command: launched.append(command) or "process",
+        command_fn=lambda: ["/abs/linux-whisper-stt", "setup"],
+    )
+
+    assert result == "process"
+    assert launched == [["/abs/linux-whisper-stt", "setup"]]
+
+
+def test_copy_result_text_uses_clipboard_helper():
+    copied = []
+
+    copy_result_text("hello", copy_fn=copied.append)
+
+    assert copied == ["hello"]
