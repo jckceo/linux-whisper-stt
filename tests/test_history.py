@@ -20,6 +20,35 @@ def test_save_writes_v2_microphone_event(tmp_path):
     assert (dest.parent / "transcript.txt").read_text() == "ciao mondo"
 
 
+def test_save_records_dictation_config_metadata(tmp_path):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist-openai")
+    cfg.general.language = "it"
+    wav = tmp_path / "rec.wav"
+    wav.write_bytes(b"RIFFDATA")
+    store = HistoryStore(cfg)
+
+    dest = store.save(wav, "ciao")
+    event = store.load_event(dest.parent.name)
+
+    assert event.source_type == "microphone"
+    assert event.engine == "openai"
+    assert event.model == "gpt-4o-mini-transcribe"
+    assert event.language == "it"
+
+    local_cfg = Config()
+    local_cfg.history.dir = str(tmp_path / "hist-local")
+    local_cfg.general.engine = "local"
+    local_cfg.local.model = "tiny"
+    local_store = HistoryStore(local_cfg)
+
+    local_dest = local_store.save(wav, "ciao")
+    local_event = local_store.load_event(local_dest.parent.name)
+
+    assert local_event.engine == "local"
+    assert local_event.model == "tiny"
+
+
 def test_disabled_does_nothing(tmp_path):
     cfg = Config()
     cfg.history.enabled = False

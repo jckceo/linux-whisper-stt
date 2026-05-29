@@ -226,12 +226,13 @@ class HistoryStore:
     def save(self, wav_path: Path, text: str, stamp: str | None = None) -> Path | None:
         if not self.config.history.enabled:
             return None
+        engine = getattr(self.config.general, "engine", "")
         event = self.create_event(
             source_type="microphone",
             created_by="dictation",
             original_path=None,
-            engine="",
-            model="",
+            engine=engine,
+            model=self._model_for_engine(engine),
             language=getattr(self.config.general, "language", "auto"),
         )
         if stamp is not None:
@@ -253,6 +254,10 @@ class HistoryStore:
             return datetime.fromisoformat(event.created_at)
         except ValueError:
             return datetime.min
+
+    def _model_for_engine(self, engine: str) -> str:
+        section = getattr(self.config, engine, None)
+        return getattr(section, "model", "") if section is not None else ""
 
     def _event_dir(self, event_id: str) -> Path:
         if (
