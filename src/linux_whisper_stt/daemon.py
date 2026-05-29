@@ -126,9 +126,17 @@ def make_ipc_handler(controller, idle_add, request_timeout: float = 5):
             cancelled = threading.Event()
             deadline = time.monotonic() + request_timeout
 
+            def timeout_result() -> dict:
+                return {
+                    "accepted": False,
+                    "state": controller.status().get("state", "?"),
+                    "error": "request timed out",
+                }
+
             def apply():
                 try:
                     if cancelled.is_set() or time.monotonic() >= deadline:
+                        result.update(timeout_result())
                         return False
                     result.update(
                         controller.transcribe_file(
@@ -151,11 +159,7 @@ def make_ipc_handler(controller, idle_add, request_timeout: float = 5):
             idle_add(apply)
             if not done.wait(timeout=request_timeout):
                 cancelled.set()
-                return {
-                    "accepted": False,
-                    "state": controller.status().get("state", "?"),
-                    "error": "request timed out",
-                }
+                return timeout_result()
             return result
         elif structured and command != "status":
             return {"error": f"unknown command: {command}"}
