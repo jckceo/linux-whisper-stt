@@ -58,9 +58,16 @@ def transcribe_chunks(
     def transcribe(path: Path) -> str:
         return backend.transcribe(path, language)
 
+    if max_workers <= 0:
+        raise ValueError("max_workers must be greater than 0")
+
+    results: list[str] = []
     with executor_cls(max_workers=max_workers) as executor:
-        futures = [executor.submit(transcribe, path) for path in chunk_paths]
-        return [future.result() for future in futures]
+        for start in range(0, len(chunk_paths), max_workers):
+            batch = chunk_paths[start : start + max_workers]
+            futures = [executor.submit(transcribe, path) for path in batch]
+            results.extend(future.result() for future in futures)
+    return results
 
 
 class TranscriptionJobRunner:

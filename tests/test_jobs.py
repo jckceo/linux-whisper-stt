@@ -331,8 +331,76 @@ def test_openai_file_job_chunks_large_audio_and_merges_in_order(tmp_path):
 
     event = runner.run_file_job(source, created_by="cli")
 
-    assert backend.calls == ["chunk-000.mp3", "chunk-001.mp3"]
+    assert sorted(backend.calls) == ["chunk-000.mp3", "chunk-001.mp3"]
     assert event.transcript_text == "first\n\nsecond"
+
+
+def test_non_openai_file_job_does_not_invoke_chunking(tmp_path):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist")
+    cfg.general.engine = "local"
+    source = tmp_path / "meeting.mp3"
+    source.write_bytes(b"source")
+    prepared_audio = tmp_path / "prepared.wav"
+    prepared_audio.write_bytes(b"RIFF")
+    backend = FakeBackend("local text")
+
+    def chunk_paths_fn(audio_path, duration_seconds, event_dir):
+        raise AssertionError("local backend should not chunk")
+
+    event = TranscriptionJobRunner(
+        config=cfg,
+        history=HistoryStore(cfg),
+        backends={"local": backend},
+        prepare_fn=lambda path, event_dir: PreparedMedia(
+            "audio_file", prepared_audio, 600.0
+        ),
+        copy_fn=lambda text: None,
+        popup_fn=lambda event: None,
+        progress_fn=lambda progress: None,
+        chunk_paths_fn=chunk_paths_fn,
+    ).run_file_job(source, created_by="cli")
+
+    assert event.status == "completed"
+    assert event.transcript_text == "local text"
+    assert backend.calls == [(prepared_audio, "auto")]
+
+
+def test_openai_file_job_chunk_failure_marks_event_failed_without_copying(tmp_path):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist")
+    cfg.general.engine = "openai"
+    source = tmp_path / "long.mp3"
+    source.write_bytes(b"source")
+    prepared_audio = tmp_path / "prepared.wav"
+    prepared_audio.write_bytes(b"RIFF")
+    chunk_path = tmp_path / "chunks" / "chunk-000.mp3"
+    chunk_path.parent.mkdir(parents=True)
+    chunk_path.write_bytes(b"chunk")
+    copied = []
+    popups = []
+
+    class FailingBackend:
+        def transcribe(self, path, language):
+            raise RuntimeError("chunk failed")
+
+    event = TranscriptionJobRunner(
+        config=cfg,
+        history=HistoryStore(cfg),
+        backends={"openai": FailingBackend()},
+        prepare_fn=lambda path, event_dir: PreparedMedia(
+            "audio_file", prepared_audio, 600.0
+        ),
+        copy_fn=copied.append,
+        popup_fn=popups.append,
+        progress_fn=lambda progress: None,
+        chunk_paths_fn=lambda audio_path, duration_seconds, event_dir: [chunk_path],
+    ).run_file_job(source, created_by="cli")
+
+    assert event.status == "failed"
+    assert event.error == "chunk failed"
+    assert copied == []
+    assert popups == [event]
 
 
 def test_transcribe_chunks_uses_limited_executor():
@@ -374,6 +442,55 @@ def test_transcribe_chunks_uses_limited_executor():
 
     assert FakeExecutor.seen_max_workers == 2
     assert parts == ["a.mp3:it", "b.mp3:it"]
+
+
+def test_transcribe_chunks_does_not_submit_later_batches_after_failure():
+    from linux_whisper_stt.jobs import transcribe_chunks
+
+    class Future:
+        def __init__(self, fn, path):
+            self.fn = fn
+            self.path = path
+
+        def result(self):
+            return self.fn(self.path)
+
+    class FakeExecutor:
+        submitted = []
+
+        def __init__(self, max_workers):
+            self.max_workers = max_workers
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def submit(self, fn, path):
+            FakeExecutor.submitted.append(Path(path).name)
+            return Future(fn, path)
+
+    class Backend:
+        def transcribe(self, path, language):
+            if Path(path).name == "a.mp3":
+                raise RuntimeError("first batch failed")
+            return f"{Path(path).name}:{language}"
+
+    try:
+        transcribe_chunks(
+            Backend(),
+            [Path("a.mp3"), Path("b.mp3"), Path("c.mp3"), Path("d.mp3")],
+            "it",
+            max_workers=2,
+            executor_cls=FakeExecutor,
+        )
+    except RuntimeError as exc:
+        assert str(exc) == "first batch failed"
+    else:
+        raise AssertionError("expected RuntimeError")
+
+    assert FakeExecutor.submitted == ["a.mp3", "b.mp3"]
 
 
 def test_build_openai_chunk_paths_uses_estimated_mp3_bytes_for_split(
