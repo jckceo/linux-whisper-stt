@@ -86,6 +86,7 @@ def main(argv: list[str] | None = None) -> int:
         "stop",
         "status",
         "setup",
+        "install-open-with",
         "install-service",
         "uninstall-service",
     ):
@@ -114,6 +115,16 @@ def main(argv: list[str] | None = None) -> int:
         from .ui.setup_window import run_setup
 
         return run_setup()
+    if command == "install-open-with":
+        from .open_with import install_open_with
+
+        try:
+            path = install_open_with(entrypoint())
+        except OSError as e:
+            print(f"error: {e}")
+            return 1
+        print(f"installed open-with entry: {path}")
+        return 0
     if command == "install-service":
         from .systemd import install_service
 

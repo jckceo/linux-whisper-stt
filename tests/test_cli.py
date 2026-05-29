@@ -82,6 +82,48 @@ def test_install_service_reports_systemctl_failure(capsys, monkeypatch):
     assert capsys.readouterr().out.startswith("error: ")
 
 
+def test_install_open_with_prints_installed_path(capsys, monkeypatch, tmp_path):
+    desktop_file = tmp_path / "linux-whisper-stt-transcribe.desktop"
+    installed = {}
+
+    def fake_install_open_with(entrypoint):
+        installed["entrypoint"] = entrypoint
+        return desktop_file
+
+    import linux_whisper_stt.open_with
+
+    monkeypatch.setattr(cli, "entrypoint", lambda: "/venv/bin/linux-whisper-stt")
+    monkeypatch.setattr(
+        linux_whisper_stt.open_with,
+        "install_open_with",
+        fake_install_open_with,
+    )
+
+    rc = cli.main(["install-open-with"])
+
+    assert rc == 0
+    assert installed == {"entrypoint": "/venv/bin/linux-whisper-stt"}
+    assert capsys.readouterr().out == f"installed open-with entry: {desktop_file}\n"
+
+
+def test_install_open_with_reports_os_error(capsys, monkeypatch):
+    def fake_install_open_with(entrypoint):
+        raise OSError("permission denied")
+
+    import linux_whisper_stt.open_with
+
+    monkeypatch.setattr(
+        linux_whisper_stt.open_with,
+        "install_open_with",
+        fake_install_open_with,
+    )
+
+    rc = cli.main(["install-open-with"])
+
+    assert rc == 1
+    assert capsys.readouterr().out == "error: permission denied\n"
+
+
 def test_uninstall_service_reports_os_error(capsys, monkeypatch):
     def fake_uninstall_service():
         raise OSError("permission denied")

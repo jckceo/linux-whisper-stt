@@ -17,6 +17,8 @@ usage() {
   cat <<'EOF'
 Usage: ./install.sh [OPTIONS]
 
+The installer also registers an Open With desktop entry for audio/video files.
+
 Options:
   --with-autopaste       Enable Wayland auto-paste integration
   --with-local-whisper   Enable offline transcription
@@ -52,6 +54,12 @@ sudo apt-get install -y "${BASE_PACKAGES[@]}"
 echo "==> Python venv (system-site-packages for PyGObject)"
 /usr/bin/python3.12 -m venv --system-site-packages "$REPO_DIR/.venv"
 "$REPO_DIR/.venv/bin/pip" install -e "$REPO_DIR"
+
+echo "==> Open With desktop entry"
+"$REPO_DIR/.venv/bin/linux-whisper-stt" install-open-with
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database "$HOME/.local/share/applications" || true
+fi
 
 if [ "$WITH_AUTOPASTE" = "1" ]; then
   echo "==> Auto-paste packages and uinput access"
