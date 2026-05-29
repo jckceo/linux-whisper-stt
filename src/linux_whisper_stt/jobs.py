@@ -10,7 +10,6 @@ from typing import Protocol
 
 from linux_whisper_stt.history import HistoryEvent, HistoryStore
 from linux_whisper_stt.media.chunking import (
-    OPENAI_TARGET_UPLOAD_BYTES,
     estimate_mp3_bytes,
     export_chunks,
     merge_transcripts,
@@ -41,9 +40,6 @@ def build_openai_chunk_paths(
         return [audio_path]
 
     estimated_bytes = estimate_mp3_bytes(duration_seconds)
-    if estimated_bytes <= OPENAI_TARGET_UPLOAD_BYTES:
-        return [audio_path]
-
     chunks = plan_chunks(duration_seconds, estimated_bytes)
     return export_chunks(audio_path, event_dir / "chunks", chunks)
 

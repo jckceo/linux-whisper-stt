@@ -16,6 +16,10 @@ class FakeBackend:
         return self.text
 
 
+def _unchunked_paths(audio_path, duration_seconds, event_dir):
+    return [Path(audio_path)]
+
+
 def test_file_job_saves_history_copies_clipboard_and_requests_popup(tmp_path):
     cfg = Config()
     cfg.history.dir = str(tmp_path / "hist")
@@ -42,6 +46,7 @@ def test_file_job_saves_history_copies_clipboard_and_requests_popup(tmp_path):
         copy_fn=copied.append,
         popup_fn=popups.append,
         progress_fn=progress.append,
+        chunk_paths_fn=_unchunked_paths,
     )
 
     event = runner.run_file_job(source, created_by="tray")
@@ -111,6 +116,7 @@ def test_file_job_copy_failure_keeps_completed_event(tmp_path):
         backends={"openai": FakeBackend("copied text")},
         prepare_fn=prepare_fn,
         copy_fn=copy_fn,
+        chunk_paths_fn=_unchunked_paths,
     ).run_file_job(source, created_by="tray")
 
     assert event.status == "completed"
@@ -140,6 +146,7 @@ def test_file_job_popup_failure_keeps_completed_event(tmp_path):
         prepare_fn=prepare_fn,
         copy_fn=copied.append,
         popup_fn=popup_fn,
+        chunk_paths_fn=_unchunked_paths,
     ).run_file_job(source, created_by="tray")
 
     assert event.status == "completed"
@@ -169,6 +176,7 @@ def test_file_job_progress_failure_keeps_completed_event(tmp_path):
         prepare_fn=prepare_fn,
         copy_fn=copied.append,
         progress_fn=progress_fn,
+        chunk_paths_fn=_unchunked_paths,
     ).run_file_job(source, created_by="tray")
 
     assert event.status == "completed"
@@ -217,6 +225,7 @@ def test_file_job_missing_backend_records_clear_error(tmp_path):
         history=HistoryStore(cfg),
         backends={},
         prepare_fn=prepare_fn,
+        chunk_paths_fn=_unchunked_paths,
     ).run_file_job(source, created_by="tray")
 
     assert event.status == "failed"
@@ -243,6 +252,7 @@ def test_file_job_empty_transcript_is_not_copied(tmp_path):
         prepare_fn=prepare_fn,
         copy_fn=copied.append,
         popup_fn=popups.append,
+        chunk_paths_fn=_unchunked_paths,
     ).run_file_job(source, created_by="tray")
 
     assert event.status == "completed"
@@ -274,6 +284,7 @@ def test_disabled_history_file_job_transcribes_without_history_files(tmp_path):
         prepare_fn=prepare_fn,
         copy_fn=copied.append,
         popup_fn=popups.append,
+        chunk_paths_fn=_unchunked_paths,
     ).run_file_job(source, created_by="tray")
 
     assert event.status == "completed"
@@ -524,3 +535,36 @@ def test_build_openai_chunk_paths_uses_estimated_mp3_bytes_for_split(
     assert captured["source"] == audio_path
     assert captured["chunk_dir"] == tmp_path / "event" / "chunks"
     assert len(captured["chunks"]) > 1
+
+
+def test_build_openai_chunk_paths_exports_single_mp3_for_short_known_duration(
+    tmp_path, monkeypatch
+):
+    from linux_whisper_stt import jobs
+
+    audio_path = tmp_path / "event" / "audio.wav"
+    audio_path.parent.mkdir()
+    audio_path.write_bytes(b"RIFF")
+    exported = [tmp_path / "event" / "chunks" / "chunk-000.mp3"]
+    captured = {}
+
+    def fake_export_chunks(source, chunk_dir, chunks):
+        captured["source"] = source
+        captured["chunk_dir"] = chunk_dir
+        captured["chunks"] = chunks
+        return exported
+
+    monkeypatch.setattr(jobs, "export_chunks", fake_export_chunks)
+
+    chunk_paths = jobs.build_openai_chunk_paths(
+        audio_path,
+        duration_seconds=120,
+        event_dir=tmp_path / "event",
+    )
+
+    assert chunk_paths == exported
+    assert chunk_paths != [audio_path]
+    assert captured["source"] == audio_path
+    assert captured["chunk_dir"] == tmp_path / "event" / "chunks"
+    assert len(captured["chunks"]) == 1
+    assert captured["chunks"][0].duration_seconds == 120.0
