@@ -3,6 +3,7 @@ from __future__ import annotations
 import mimetypes
 import subprocess
 from dataclasses import dataclass
+from math import isfinite
 from pathlib import Path
 
 
@@ -59,9 +60,12 @@ def read_duration(path: Path, runner=subprocess.run) -> float | None:
     if proc.returncode != 0:
         return None
     try:
-        return float(proc.stdout.strip())
+        duration = float(proc.stdout.strip())
     except ValueError:
         return None
+    if not isfinite(duration) or duration < 0:
+        return None
+    return duration
 
 
 def prepare_media(
@@ -73,13 +77,17 @@ def prepare_media(
     source = Path(source)
     if not source.exists():
         raise RuntimeError(f"File does not exist: {source}")
+    if not source.is_file():
+        raise RuntimeError(f"Not a regular file: {source}")
     source_type = classify_source(source, mime_fn=mime_fn)
     if source_type == "unsupported":
         raise RuntimeError(f"Unsupported file type: {source}")
+    event_dir = Path(event_dir)
     event_dir.mkdir(parents=True, exist_ok=True)
     audio_path = event_dir / "audio.wav"
     proc = runner(build_extract_audio_command(source, audio_path), capture_output=True, text=True)
     if proc.returncode != 0:
+        audio_path.unlink(missing_ok=True)
         message = (proc.stderr or "ffmpeg failed").strip()
         raise RuntimeError(message)
     return PreparedMedia(
