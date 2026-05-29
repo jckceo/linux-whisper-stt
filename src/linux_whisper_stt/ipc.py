@@ -7,11 +7,28 @@ import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 
 def runtime_socket_path() -> Path:
     base = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
     return Path(base) / "linux-whisper-stt.sock"
+
+
+def encode_message(payload: str | dict[str, Any]) -> str:
+    if isinstance(payload, str):
+        return payload
+    return json.dumps(payload)
+
+
+def parse_message(data: str) -> dict[str, Any]:
+    stripped = data.strip()
+    if stripped.startswith("{"):
+        parsed = json.loads(stripped)
+        if not isinstance(parsed, dict) or "command" not in parsed:
+            raise ValueError("invalid IPC payload")
+        return parsed
+    return {"command": stripped}
 
 
 class IPCServer:
@@ -56,7 +73,7 @@ class IPCServer:
 
 
 def send_command(
-    command: str,
+    command: str | dict[str, Any],
     socket_path: Path | None = None,
     connect_retries: int = 10,
     retry_delay: float = 0.02,
@@ -79,7 +96,7 @@ def send_command(
             time.sleep(retry_delay)
             continue
         try:
-            sock.sendall((command + "\n").encode("utf-8"))
+            sock.sendall((encode_message(command) + "\n").encode("utf-8"))
             data = sock.recv(65536).decode("utf-8").strip()
         finally:
             sock.close()

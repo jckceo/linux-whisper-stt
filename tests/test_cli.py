@@ -96,3 +96,47 @@ def test_uninstall_service_reports_os_error(capsys, monkeypatch):
 
     assert rc == 1
     assert capsys.readouterr().out == "error: permission denied\n"
+
+
+def test_transcribe_file_sends_structured_ipc(monkeypatch, tmp_path, capsys):
+    sent = []
+    media = tmp_path / "my file.mp4"
+    media.write_bytes(b"x")
+
+    def fake_send_command(payload):
+        sent.append(payload)
+        return {"accepted": True, "state": "transcribing"}
+
+    monkeypatch.setattr("linux_whisper_stt.cli.send_command", fake_send_command)
+
+    assert cli.main(["transcribe-file", str(media)]) == 0
+    assert sent == [{"command": "transcribe-file", "path": str(media)}]
+    assert "accepted" in capsys.readouterr().out
+
+
+def test_transcribe_file_starts_daemon_then_retries(monkeypatch, tmp_path, capsys):
+    calls = []
+    media = tmp_path / "clip.mp3"
+    media.write_bytes(b"x")
+
+    def fake_send_command(payload, **kwargs):
+        calls.append((payload, kwargs))
+        if len(calls) == 1:
+            raise ConnectionError("missing socket")
+        return {"accepted": True, "state": "transcribing"}
+
+    started = []
+    monkeypatch.setattr("linux_whisper_stt.cli.send_command", fake_send_command)
+    monkeypatch.setattr(
+        "linux_whisper_stt.cli.start_daemon_background", lambda: started.append(True)
+    )
+    monkeypatch.setattr("linux_whisper_stt.cli.time.sleep", lambda _seconds: None)
+
+    assert cli.main(["transcribe-file", str(media)]) == 0
+    assert started == [True]
+    assert calls[0] == ({"command": "transcribe-file", "path": str(media)}, {})
+    assert calls[1] == (
+        {"command": "transcribe-file", "path": str(media)},
+        {"connect_retries": 50, "retry_delay": 0.1},
+    )
+    assert "accepted" in capsys.readouterr().out

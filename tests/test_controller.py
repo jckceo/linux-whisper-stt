@@ -158,3 +158,18 @@ def test_wav_deleted_after_transcription(tmp_path):
     c.toggle()
     c.toggle()
     assert not wav.exists()
+
+
+def test_transcribe_file_rejects_when_busy(tmp_path):
+    class Jobs:
+        def run_file_job(self, path, created_by):
+            return None
+
+    c, *_ = make_controller()
+    c.file_jobs = Jobs()
+    c.state = State.TRANSCRIBING
+
+    result = c.transcribe_file(tmp_path / "a.mp3", created_by="tray")
+
+    assert result["accepted"] is False
+    assert "busy" in result["error"].lower()

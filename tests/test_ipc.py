@@ -1,7 +1,16 @@
 import threading
 import time
 
-from linux_whisper_stt.ipc import IPCServer, send_command
+from linux_whisper_stt.ipc import IPCServer, encode_message, parse_message, send_command
+
+
+def test_parse_legacy_string_command():
+    assert parse_message("toggle") == {"command": "toggle"}
+
+
+def test_encode_and_parse_structured_command_with_spaces():
+    payload = {"command": "transcribe-file", "path": "/tmp/my file.mp4"}
+    assert parse_message(encode_message(payload)) == payload
 
 
 def test_roundtrip(tmp_path):

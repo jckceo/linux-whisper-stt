@@ -24,6 +24,7 @@ class Controller:
         config,
         run_async: Callable[[Callable[[], None]], None] | None = None,
         history=None,
+        file_jobs=None,
     ):
         self.recorder = recorder
         self.transcription = transcription
@@ -32,6 +33,7 @@ class Controller:
         self.sounds = sounds
         self.config = config
         self.history = history
+        self.file_jobs = file_jobs
         # default: run inline (deterministic for tests). Daemon injects a thread runner.
         self._run_async = run_async or (lambda fn: fn())
         self.state = State.IDLE
@@ -56,6 +58,26 @@ class Controller:
 
     def status(self) -> dict:
         return {"state": self.state.value, "last_error": self.last_error}
+
+    def transcribe_file(self, path: Path, created_by: str) -> dict:
+        if self.state not in (State.IDLE, State.ERROR):
+            return {
+                "accepted": False,
+                "state": self.state.value,
+                "error": "busy",
+            }
+        if self.file_jobs is None:
+            return {
+                "accepted": False,
+                "state": self.state.value,
+                "error": "file transcription is not configured",
+            }
+
+        self.last_error = ""
+        self._set_state(State.TRANSCRIBING)
+        response = {"accepted": True, "state": self.state.value}
+        self._run_async(lambda: self._run_file_job(path, created_by))
+        return response
 
     # --- internals ---
 
@@ -88,6 +110,16 @@ class Controller:
             self._fail(str(e))
         finally:
             wav_path.unlink(missing_ok=True)
+
+    def _run_file_job(self, path: Path, created_by: str) -> None:
+        try:
+            event = self.file_jobs.run_file_job(path, created_by=created_by)
+            if event is not None and getattr(event, "status", "") == "failed":
+                self._fail(getattr(event, "error", "") or "File transcription failed")
+                return
+            self._set_state(State.IDLE, "Saved to history")
+        except Exception as e:
+            self._fail(str(e))
 
     def _fail(self, message: str) -> None:
         self.last_error = message

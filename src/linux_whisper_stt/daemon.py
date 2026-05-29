@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import threading
+from pathlib import Path
 
 from .assets import asset_path
 from .config import load_config
 from .controller import Controller
-from .ipc import IPCServer
+from .ipc import IPCServer, parse_message
 from .secrets import get_api_key
 from .sounds import Sounds
 
@@ -72,7 +73,9 @@ def run_daemon(dry_run: bool = False) -> int:
         indicator.bind_controller(controller)
 
     # IPC: translate commands to controller calls; reply with status.
-    def handle(command: str) -> dict:
+    def handle(data: str) -> dict:
+        payload = parse_message(data)
+        command = payload["command"]
         if command in ("toggle", "start", "stop"):
             done = threading.Event()
 
@@ -90,6 +93,38 @@ def run_daemon(dry_run: bool = False) -> int:
 
             GLib.idle_add(apply)
             done.wait(timeout=5)
+        elif command == "transcribe-file":
+            done = threading.Event()
+            result = {}
+
+            def apply():
+                try:
+                    result.update(
+                        controller.transcribe_file(
+                            Path(payload["path"]),
+                            created_by=payload.get("created_by", "cli"),
+                        )
+                    )
+                except Exception as e:
+                    result.update(
+                        {
+                            "accepted": False,
+                            "state": controller.status().get("state", "?"),
+                            "error": str(e),
+                        }
+                    )
+                finally:
+                    done.set()
+                return False
+
+            GLib.idle_add(apply)
+            if not done.wait(timeout=5):
+                return {
+                    "accepted": False,
+                    "state": controller.status().get("state", "?"),
+                    "error": "request timed out",
+                }
+            return result
         return controller.status()
 
     server = IPCServer(handle)
