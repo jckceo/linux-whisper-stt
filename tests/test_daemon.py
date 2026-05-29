@@ -114,6 +114,26 @@ def test_build_controller_marks_stale_processing_history_failed(monkeypatch):
     assert history.marked_stale_failed is True
 
 
+def test_build_controller_passes_dictionary_terms_to_openai_backend(monkeypatch):
+    captured = {}
+    patch_build_controller_components(monkeypatch)
+
+    import linux_whisper_stt.transcribe.openai_backend
+
+    monkeypatch.setattr(
+        linux_whisper_stt.transcribe.openai_backend,
+        "OpenAITranscriber",
+        lambda **kwargs: captured.update(kwargs) or FakeComponent(),
+    )
+
+    config = Config()
+    config.dictionary.terms = "ASIN, FNSKU"
+
+    build_controller(config, FakeIndicator(), lambda fn: fn())
+
+    assert captured["dictionary_terms"] == "ASIN, FNSKU"
+
+
 def test_build_controller_wires_file_job_runner(monkeypatch):
     patch_build_controller_components(monkeypatch)
 

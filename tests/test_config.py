@@ -12,6 +12,7 @@ def test_defaults():
     assert c.openai.model == "gpt-4o-mini-transcribe"
     assert c.local.model == "small"
     assert c.audio.samplerate == 16000
+    assert c.dictionary.terms == ""
 
 
 def test_load_missing_returns_defaults(tmp_path):
@@ -24,10 +25,12 @@ def test_save_then_load_roundtrip(tmp_path):
     c = Config()
     c.general.engine = "local"
     c.audio.max_seconds = 120
+    c.dictionary.terms = "ASIN, FNSKU, reimbursement adjustments"
     save_config(c, path)
     loaded = load_config(path)
     assert loaded.general.engine == "local"
     assert loaded.audio.max_seconds == 120
+    assert loaded.dictionary.terms == "ASIN, FNSKU, reimbursement adjustments"
 
 
 def test_load_ignores_unknown_keys(tmp_path):

@@ -46,6 +46,11 @@ class HistoryConfig:
     dir: str = "~/.local/share/linux-whisper-stt/history"
 
 
+@dataclass
+class DictionaryConfig:
+    terms: str = ""
+
+
 def _build(dc_cls, data: dict):
     known = {f.name for f in fields(dc_cls)}
     return dc_cls(**{k: v for k, v in data.items() if k in known})
@@ -59,6 +64,7 @@ class Config:
     local: LocalConfig = field(default_factory=LocalConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
     history: HistoryConfig = field(default_factory=HistoryConfig)
+    dictionary: DictionaryConfig = field(default_factory=DictionaryConfig)
 
     @classmethod
     def from_dict(cls, data: dict) -> Config:
@@ -69,6 +75,7 @@ class Config:
             local=_build(LocalConfig, data.get("local", {})),
             audio=_build(AudioConfig, data.get("audio", {})),
             history=_build(HistoryConfig, data.get("history", {})),
+            dictionary=_build(DictionaryConfig, data.get("dictionary", {})),
         )
 
     def to_dict(self) -> dict:
@@ -79,6 +86,7 @@ class Config:
             "local": asdict(self.local),
             "audio": asdict(self.audio),
             "history": asdict(self.history),
+            "dictionary": asdict(self.dictionary),
         }
 
 

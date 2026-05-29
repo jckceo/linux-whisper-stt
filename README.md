@@ -11,6 +11,7 @@ Linux desktop dictation with a global shortcut, tray indicator, OpenAI or local 
 - Global GNOME shortcut for start/stop dictation
 - AppIndicator tray icon with state feedback and a Settings window
 - OpenAI transcription via `gpt-4o-mini-transcribe`, `gpt-4o-transcribe`, or `whisper-1`
+- User Dictionary/glossary for domain-specific terms such as ASIN, SKU, FNSKU, or product names
 - Optional offline transcription through a locally built `whisper.cpp`
 - Auto-paste on Wayland through clipboard paste via `ydotool`
 - Clipboard fallback through `wl-copy`
@@ -77,9 +78,9 @@ Then open Settings:
 ```
 
 Settings lets you save your OpenAI API key, choose the transcription engine, set
-the language, register the GNOME shortcut, toggle `Auto-paste`, and control the
-`Start on startup` switch. Turning startup on writes the desktop autostart
-entry; turning it off removes that entry.
+the language, edit the Dictionary/glossary, register the GNOME shortcut, toggle
+`Auto-paste`, and control the `Start on startup` switch. Turning startup on
+writes the desktop autostart entry; turning it off removes that entry.
 
 ## Start The App
 
@@ -231,6 +232,9 @@ max_seconds = 300
 [history]
 enabled = true
 dir = "~/.local/share/linux-whisper-stt/history"
+
+[dictionary]
+terms = ""
 ```
 
 Unknown keys are ignored. The config file is written with mode `0600`.
@@ -252,6 +256,14 @@ Recommended model:
 [openai]
 model = "gpt-4o-mini-transcribe"
 ```
+
+Use `Settings -> Dictionary` to add product names, acronyms, marketplace terms,
+or other words that should keep a specific spelling. Entries can be comma
+separated or written on separate lines. For OpenAI transcription the app sends
+those entries as the transcription `prompt`, so terms such as `ASIN`, `SKU`,
+`FNSKU`, `FBA`, or `reimbursement adjustments` are more likely to be preserved
+correctly. The local `whisper.cpp` engine keeps the setting in config but does
+not currently use it.
 
 ### Local whisper.cpp
 
@@ -276,12 +288,13 @@ Auto-paste uses:
 
 ```bash
 wl-copy
-ydotool key 29:1 47:1 47:0 29:0
+ydotool key ctrl+shift+v
 ```
 
 The transcribed text is copied to the clipboard first, then `ydotool` sends the
-paste shortcut after a short delay. It does not type transcript characters
-directly, which avoids keyboard-layout and held-modifier issues.
+plain-text paste shortcut after a short delay. It does not type transcript
+characters directly, which avoids keyboard-layout, Unicode, and held-modifier
+issues.
 
 Requirements:
 

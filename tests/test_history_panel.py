@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from linux_whisper_stt.ui.history_panel import (
+    HISTORY_LIST_MIN_WIDTH,
     build_history_tab,
     event_title,
     metadata_lines,
@@ -62,20 +63,54 @@ def test_metadata_lines_omits_missing_optional_fields():
     ]
 
 
-def test_open_audio_uses_xdg_open_when_path_is_present():
+def test_open_audio_uses_audio_player_when_path_is_present():
     calls = []
 
-    open_audio("/tmp/audio.wav", runner=lambda argv: calls.append(argv))
+    message = open_audio(
+        "/tmp/audio.wav",
+        runner=lambda argv: calls.append(argv),
+        which=lambda name: "/usr/bin/pw-play" if name == "pw-play" else None,
+        exists_fn=lambda path: True,
+    )
+
+    assert calls == [["pw-play", "/tmp/audio.wav"]]
+    assert message == "Opening audio file with pw-play"
+
+
+def test_open_audio_falls_back_to_xdg_open_when_no_player_is_found():
+    calls = []
+
+    message = open_audio(
+        "/tmp/audio.wav",
+        runner=lambda argv: calls.append(argv),
+        which=lambda name: "/usr/bin/xdg-open" if name == "xdg-open" else None,
+        exists_fn=lambda path: True,
+    )
 
     assert calls == [["xdg-open", "/tmp/audio.wav"]]
+    assert message == "Opening audio file with xdg-open"
+
+
+def test_open_audio_reports_missing_file():
+    calls = []
+
+    message = open_audio(
+        "/tmp/missing.wav",
+        runner=lambda argv: calls.append(argv),
+        exists_fn=lambda path: False,
+    )
+
+    assert calls == []
+    assert message == "Audio file not found: /tmp/missing.wav"
 
 
 def test_open_audio_ignores_blank_path():
     calls = []
 
-    open_audio("", runner=lambda argv: calls.append(argv))
+    message = open_audio("", runner=lambda argv: calls.append(argv))
 
     assert calls == []
+    assert message == "No audio file saved for this history item"
 
 
 def test_build_history_tab_selects_copies_opens_and_deletes_event():
@@ -88,10 +123,11 @@ def test_build_history_tab_selects_copies_opens_and_deletes_event():
         FakeGtk,
         store,
         copy_fn=lambda text: copied.append(text),
-        open_audio_fn=lambda path: opened.append(path),
+        open_audio_fn=lambda path: opened.append(path) or "Opened audio file",
     )
 
     list_box = tab.children[0].child
+    assert tab.children[0].min_content_width == HISTORY_LIST_MIN_WIDTH
     row = list_box.rows[0]
     list_box.select_row(row)
 
@@ -111,6 +147,7 @@ def test_build_history_tab_selects_copies_opens_and_deletes_event():
 
     assert copied == ["hello"]
     assert opened == ["/tmp/audio.wav"]
+    assert detail.children[4].label == "Opened audio file"
     assert store.deleted == ["evt-1"]
 
 
@@ -223,6 +260,7 @@ class FakeGtk:
             self.child = None
             self.hexpand = False
             self.vexpand = False
+            self.min_content_width = None
 
         def set_child(self, child):
             self.child = child
@@ -232,6 +270,9 @@ class FakeGtk:
 
         def set_vexpand(self, value):
             self.vexpand = value
+
+        def set_min_content_width(self, value):
+            self.min_content_width = value
 
     class ListBox:
         def __init__(self):

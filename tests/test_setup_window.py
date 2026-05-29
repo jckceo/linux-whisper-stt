@@ -3,6 +3,7 @@ from linux_whisper_stt.ui.setup_window import (
     build_window_shell,
     paste_mode_from_auto_paste,
     present_existing_window,
+    read_text_buffer,
     settings_tab_labels,
 )
 
@@ -102,7 +103,19 @@ def test_paste_mode_from_auto_paste():
 
 
 def test_settings_tab_labels():
-    assert settings_tab_labels() == ["General", "History"]
+    assert settings_tab_labels() == ["General", "Dictionary", "History"]
+
+
+def test_read_text_buffer_returns_full_text():
+    class Buffer:
+        def get_bounds(self):
+            return "start", "end"
+
+        def get_text(self, start, end, include_hidden_chars):
+            assert (start, end, include_hidden_chars) == ("start", "end", False)
+            return "ASIN, FNSKU"
+
+    assert read_text_buffer(Buffer()) == "ASIN, FNSKU"
 
 
 def test_build_window_shell_adds_close_button():

@@ -1,7 +1,10 @@
 
 import pytest
 
-from linux_whisper_stt.transcribe.openai_backend import OpenAITranscriber
+from linux_whisper_stt.transcribe.openai_backend import (
+    OpenAITranscriber,
+    build_dictionary_prompt,
+)
 
 
 class FakeTranscriptions:
@@ -49,6 +52,45 @@ def test_transcribe_passes_explicit_language(tmp_path):
                           client_factory=lambda api_key: client)
     t.transcribe(wav, "it")
     assert client.audio.transcriptions.last_kwargs["language"] == "it"
+
+
+def test_build_dictionary_prompt_normalizes_comma_and_newline_terms():
+    assert build_dictionary_prompt("ASIN, FNSKU\nreimbursement adjustments") == (
+        "Use this dictionary/glossary for domain-specific transcription terms. "
+        "Preserve these spellings and capitalization when spoken: "
+        "ASIN, FNSKU, reimbursement adjustments."
+    )
+
+
+def test_transcribe_passes_dictionary_prompt_when_terms_exist(tmp_path):
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"RIFF")
+    client = FakeClient(text="x")
+    t = OpenAITranscriber(
+        api_key_provider=lambda: "sk-x",
+        model="gpt-4o-mini-transcribe",
+        dictionary_terms="ASIN, FNSKU",
+        client_factory=lambda api_key: client,
+    )
+    t.transcribe(wav, "auto")
+    assert client.audio.transcriptions.last_kwargs["prompt"] == (
+        "Use this dictionary/glossary for domain-specific transcription terms. "
+        "Preserve these spellings and capitalization when spoken: ASIN, FNSKU."
+    )
+
+
+def test_transcribe_omits_dictionary_prompt_when_terms_are_blank(tmp_path):
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"RIFF")
+    client = FakeClient(text="x")
+    t = OpenAITranscriber(
+        api_key_provider=lambda: "sk-x",
+        model="gpt-4o-mini-transcribe",
+        dictionary_terms="  ,\n ",
+        client_factory=lambda api_key: client,
+    )
+    t.transcribe(wav, "auto")
+    assert "prompt" not in client.audio.transcriptions.last_kwargs
 
 
 def test_missing_api_key_raises(tmp_path):

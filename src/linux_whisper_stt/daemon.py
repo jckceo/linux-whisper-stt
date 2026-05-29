@@ -45,7 +45,9 @@ def build_controller(config, indicator, run_async, popup_fn=None):
         max_seconds=config.audio.max_seconds,
     )
     openai_backend = OpenAITranscriber(
-        api_key_provider=get_api_key, model=config.openai.model
+        api_key_provider=get_api_key,
+        model=config.openai.model,
+        dictionary_terms=config.dictionary.terms,
     )
     from .transcribe.local_backend import LocalWhisperCppTranscriber
 

@@ -26,7 +26,12 @@ def build_window_shell(Adw, Gtk, win, content):
 
 
 def settings_tab_labels() -> list[str]:
-    return ["General", "History"]
+    return ["General", "Dictionary", "History"]
+
+
+def read_text_buffer(buffer) -> str:
+    start, end = buffer.get_bounds()
+    return buffer.get_text(start, end, False)
 
 
 def apply_startup_preference(
@@ -137,6 +142,40 @@ def run_setup() -> int:
 
         status = Gtk.Label(label="", xalign=0)
 
+        dictionary_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        dictionary_box.set_margin_top(18)
+        dictionary_box.set_margin_bottom(18)
+        dictionary_box.set_margin_start(18)
+        dictionary_box.set_margin_end(18)
+
+        dictionary_box.append(Gtk.Label(label="Dictionary", xalign=0))
+        dictionary_buffer = Gtk.TextBuffer()
+        dictionary_buffer.set_text(config.dictionary.terms)
+        dictionary_view = Gtk.TextView(buffer=dictionary_buffer)
+        dictionary_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        dictionary_scroller = Gtk.ScrolledWindow()
+        dictionary_scroller.set_hexpand(True)
+        dictionary_scroller.set_vexpand(True)
+        dictionary_scroller.set_child(dictionary_view)
+        dictionary_box.append(dictionary_scroller)
+        dictionary_status = Gtk.Label(label="", xalign=0)
+
+        def save_dictionary() -> None:
+            config.dictionary.terms = read_text_buffer(dictionary_buffer).strip()
+            save_config(config)
+
+        def on_save_dictionary(_btn):
+            try:
+                save_dictionary()
+                dictionary_status.set_text("Saved dictionary.")
+            except Exception as e:
+                dictionary_status.set_text(f"Error: {e}")
+
+        dictionary_save_btn = Gtk.Button(label="Save dictionary")
+        dictionary_save_btn.connect("clicked", on_save_dictionary)
+        dictionary_box.append(dictionary_save_btn)
+        dictionary_box.append(dictionary_status)
+
         def on_save(_btn):
             try:
                 key = key_entry.get_text().strip()
@@ -148,6 +187,7 @@ def run_setup() -> int:
                     auto_paste_switch.get_active()
                 )
                 config.shortcut.binding = shortcut_entry.get_text().strip() or "<Control><Alt>space"
+                config.dictionary.terms = read_text_buffer(dictionary_buffer).strip()
                 save_config(config)
                 register_shortcut(config.shortcut.binding)
                 startup_mode = apply_startup_preference(startup_switch.get_active())
@@ -173,8 +213,12 @@ def run_setup() -> int:
 
         notebook.append_page(general_box, Gtk.Label(label=settings_tab_labels()[0]))
         notebook.append_page(
-            build_history_tab(Gtk, HistoryStore(config), copy_to_clipboard),
+            dictionary_box,
             Gtk.Label(label=settings_tab_labels()[1]),
+        )
+        notebook.append_page(
+            build_history_tab(Gtk, HistoryStore(config), copy_to_clipboard),
+            Gtk.Label(label=settings_tab_labels()[2]),
         )
 
         build_window_shell(Adw, Gtk, win, notebook)

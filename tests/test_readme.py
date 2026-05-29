@@ -56,6 +56,18 @@ def test_readme_documents_file_transcription_and_history():
     assert "without audio" in history
 
 
+def test_readme_documents_dictionary_glossary():
+    readme = (ROOT / "README.md").read_text()
+    configuration = _section(readme, "## Configuration")
+    engines = _section(readme, "## Transcription Engines")
+
+    assert "Dictionary" in readme
+    assert "[dictionary]" in configuration
+    assert "terms" in configuration
+    assert "Settings -> Dictionary" in engines
+    assert "prompt" in engines
+
+
 def test_security_reporting_has_actionable_github_channel():
     security = (ROOT / "SECURITY.md").read_text()
     reporting = _section(security, "## Reporting Security Issues")

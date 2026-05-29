@@ -1,6 +1,16 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
+from pathlib import Path
+
+HISTORY_LIST_MIN_WIDTH = 320
+
+_AUDIO_OPEN_COMMANDS = (
+    ("pw-play", lambda path: ["pw-play", path]),
+    ("ffplay", lambda path: ["ffplay", "-nodisp", "-autoexit", "-loglevel", "error", path]),
+    ("xdg-open", lambda path: ["xdg-open", path]),
+)
 
 
 def event_title(event) -> str:
@@ -38,9 +48,26 @@ def metadata_lines(event) -> list[str]:
     return lines
 
 
-def open_audio(path: str, runner=subprocess.Popen) -> None:
-    if path:
-        runner(["xdg-open", path])
+def open_audio(
+    path: str,
+    runner=subprocess.Popen,
+    which=shutil.which,
+    exists_fn=Path.exists,
+) -> str:
+    if not path:
+        return "No audio file saved for this history item"
+    audio_path = Path(path)
+    if not exists_fn(audio_path):
+        return f"Audio file not found: {path}"
+    for executable, command_factory in _AUDIO_OPEN_COMMANDS:
+        if which(executable) is None:
+            continue
+        try:
+            runner(command_factory(path))
+        except OSError:
+            continue
+        return f"Opening audio file with {executable}"
+    return "No audio player found for this file"
 
 
 def _can_delete_event(event) -> bool:
@@ -59,6 +86,7 @@ def build_history_tab(Gtk, history_store, copy_fn, open_audio_fn=open_audio):
     list_scroller = Gtk.ScrolledWindow()
     list_scroller.set_vexpand(True)
     list_scroller.set_hexpand(False)
+    list_scroller.set_min_content_width(HISTORY_LIST_MIN_WIDTH)
 
     list_box = Gtk.ListBox()
     list_box.set_selection_mode(Gtk.SelectionMode.SINGLE)
@@ -99,6 +127,10 @@ def build_history_tab(Gtk, history_store, copy_fn, open_audio_fn=open_audio):
         button.set_sensitive(False)
         buttons.append(button)
     detail.append(buttons)
+
+    status_label = Gtk.Label(label="", xalign=0)
+    status_label.set_wrap(True)
+    detail.append(status_label)
     root.append(detail)
 
     def show_event(event) -> None:
@@ -136,11 +168,14 @@ def build_history_tab(Gtk, history_store, copy_fn, open_audio_fn=open_audio):
         event = selected_event["event"]
         if event is not None:
             copy_fn(getattr(event, "transcript_text", "") or "")
+            status_label.set_text("Copied transcript")
 
     def on_open(_button) -> None:
         event = selected_event["event"]
         if event is not None:
-            open_audio_fn(getattr(event, "audio_path", ""))
+            message = open_audio_fn(getattr(event, "audio_path", ""))
+            if message:
+                status_label.set_text(message)
 
     def on_delete(_button) -> None:
         event = selected_event["event"]
