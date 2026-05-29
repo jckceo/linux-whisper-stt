@@ -107,8 +107,10 @@ class HistoryStore:
         event_dir.mkdir(parents=True, exist_ok=True)
         audio_dest = event_dir / "audio.wav"
         transcript_dest = event_dir / "transcript.txt"
+        audio_source = Path(audio_source)
         try:
-            shutil.copyfile(audio_source, audio_dest)
+            if audio_source.resolve() != audio_dest.resolve():
+                shutil.copyfile(audio_source, audio_dest)
             audio_path = str(audio_dest)
         except OSError:
             if not allow_audio_failure:

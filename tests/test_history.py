@@ -142,6 +142,30 @@ def test_save_event_writes_event_directory(tmp_path):
     assert completed.duration_seconds == 12.5
 
 
+def test_complete_event_accepts_audio_already_in_event_directory(tmp_path):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist")
+    store = HistoryStore(cfg)
+    event = store.create_event(
+        source_type="audio_file",
+        created_by="tray",
+        original_path=Path("/home/me/meeting.mp3"),
+        engine="openai",
+        model="gpt-4o-mini-transcribe",
+        language="auto",
+    )
+    event_audio = tmp_path / "hist" / event.id / "audio.wav"
+    event_audio.write_bytes(b"PREPARED")
+
+    completed = store.complete_event(event.id, event_audio, "ready", duration_seconds=4.0)
+
+    assert completed.status == "completed"
+    assert completed.audio_path == str(event_audio)
+    assert event_audio.read_bytes() == b"PREPARED"
+    assert completed.transcript_text == "ready"
+    assert completed.duration_seconds == 4.0
+
+
 def test_list_events_includes_v2_and_legacy_pairs(tmp_path):
     cfg = Config()
     cfg.history.dir = str(tmp_path / "hist")

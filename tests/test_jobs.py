@@ -21,15 +21,16 @@ def test_file_job_saves_history_copies_clipboard_and_requests_popup(tmp_path):
     cfg.history.dir = str(tmp_path / "hist")
     source = tmp_path / "meeting.mp3"
     source.write_bytes(b"source")
-    prepared_audio = tmp_path / "prepared.wav"
-    prepared_audio.write_bytes(b"RIFF")
+    prepared_event_dirs = []
     copied = []
     popups = []
     progress = []
 
     def prepare_fn(path, event_dir):
         assert path == source
-        assert event_dir.name
+        prepared_event_dirs.append(event_dir)
+        prepared_audio = event_dir / "audio.wav"
+        prepared_audio.write_bytes(b"RIFF")
         return PreparedMedia("audio_file", prepared_audio, 44.0)
 
     runner = TranscriptionJobRunner(
@@ -47,6 +48,7 @@ def test_file_job_saves_history_copies_clipboard_and_requests_popup(tmp_path):
     assert event.status == "completed"
     assert event.source_type == "audio_file"
     assert event.transcript_text == "transcribed text"
+    assert prepared_event_dirs == [Path(cfg.history.dir) / event.id]
     assert copied == ["transcribed text"]
     assert popups == [event]
     assert JobProgress("completed", event.id, "Completed") in progress
