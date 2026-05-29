@@ -83,19 +83,41 @@ class HistoryStore:
         transcript: str,
         duration_seconds: float | None = None,
     ) -> HistoryEvent:
+        return self._complete_event(
+            event_id,
+            audio_source,
+            transcript,
+            duration_seconds=duration_seconds,
+            allow_audio_failure=False,
+        )
+
+    def _complete_event(
+        self,
+        event_id: str,
+        audio_source: Path,
+        transcript: str,
+        duration_seconds: float | None = None,
+        allow_audio_failure: bool = False,
+    ) -> HistoryEvent:
         event = self.load_event(event_id)
         if event.status == "disabled":
             return event
 
-        event_dir = self.directory() / event_id
+        event_dir = self._event_dir(event_id)
         event_dir.mkdir(parents=True, exist_ok=True)
         audio_dest = event_dir / "audio.wav"
         transcript_dest = event_dir / "transcript.txt"
-        shutil.copyfile(audio_source, audio_dest)
+        try:
+            shutil.copyfile(audio_source, audio_dest)
+            audio_path = str(audio_dest)
+        except OSError:
+            if not allow_audio_failure:
+                raise
+            audio_path = ""
         transcript_dest.write_text(transcript or "", encoding="utf-8")
 
         event.status = "completed"
-        event.audio_path = str(audio_dest)
+        event.audio_path = audio_path
         event.transcript_path = str(transcript_dest)
         event.duration_seconds = duration_seconds
         event.error = ""
@@ -117,7 +139,7 @@ class HistoryStore:
             raise ValueError("legacy history events are read-only")
         if not self.config.history.enabled or event.status == "disabled":
             return
-        event_dir = self.directory() / event.id
+        event_dir = self._event_dir(event.id)
         event_dir.mkdir(parents=True, exist_ok=True)
         data = asdict(event)
         data.pop("transcript_text", None)
@@ -135,7 +157,7 @@ class HistoryStore:
                 created_by="",
             )
 
-        event_json = self.directory() / event_id / "event.json"
+        event_json = self._event_dir(event_id) / "event.json"
         data = json.loads(event_json.read_text(encoding="utf-8"))
         event_fields = {field.name for field in fields(HistoryEvent)}
         event = HistoryEvent(**{k: v for k, v in data.items() if k in event_fields})
@@ -170,6 +192,10 @@ class HistoryStore:
                 ).isoformat()
             except ValueError:
                 created_at = datetime.fromtimestamp(wav_path.stat().st_mtime).isoformat()
+            try:
+                transcript_text = txt_path.read_text(encoding="utf-8")
+            except (OSError, UnicodeError):
+                continue
             event = HistoryEvent(
                 id=wav_path.stem,
                 created_at=created_at,
@@ -179,14 +205,14 @@ class HistoryStore:
                 audio_path=str(wav_path),
                 transcript_path=str(txt_path),
                 legacy=True,
-                transcript_text=txt_path.read_text(encoding="utf-8"),
+                transcript_text=transcript_text,
             )
             events.append((self._sort_time(event), event))
 
         return [event for _, event in sorted(events, key=lambda item: item[0], reverse=True)]
 
     def delete_event(self, event_id: str) -> None:
-        event_dir = self.directory() / event_id
+        event_dir = self._event_dir(event_id)
         if event_dir.is_dir() and (event_dir / "event.json").exists():
             shutil.rmtree(event_dir)
 
@@ -212,7 +238,9 @@ class HistoryStore:
             self.delete_event(event.id)
             event.id = self._new_event_id(stamp)
             self.update_event(event)
-        completed = self.complete_event(event.id, wav_path, text)
+        completed = self._complete_event(
+            event.id, wav_path, text, allow_audio_failure=True
+        )
         return Path(completed.audio_path) if completed.audio_path else None
 
     def _new_event_id(self, stamp: str | None = None) -> str:
@@ -225,3 +253,15 @@ class HistoryStore:
             return datetime.fromisoformat(event.created_at)
         except ValueError:
             return datetime.min
+
+    def _event_dir(self, event_id: str) -> Path:
+        if (
+            not event_id
+            or event_id in {".", ".."}
+            or "/" in event_id
+            or "\\" in event_id
+            or Path(event_id).is_absolute()
+            or Path(event_id).name != event_id
+        ):
+            raise ValueError("invalid history event id")
+        return self.directory() / event_id

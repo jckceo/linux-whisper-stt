@@ -214,3 +214,89 @@ def test_list_events_sorts_by_created_at_not_metadata_mtime(tmp_path):
     events = store.list_events()
 
     assert [event.id for event in events[:2]] == [newer.id, older.id]
+
+
+def test_save_preserves_transcript_when_audio_copy_fails(tmp_path, monkeypatch):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist")
+    wav = tmp_path / "missing.wav"
+
+    def fail_copy(source, destination):
+        raise OSError("copy failed")
+
+    monkeypatch.setattr("linux_whisper_stt.history.shutil.copyfile", fail_copy)
+
+    dest = HistoryStore(cfg).save(wav, "dictated text", stamp="20260529-120000")
+
+    assert dest is None
+    event_dir = next((tmp_path / "hist").iterdir())
+    event = HistoryStore(cfg).load_event(event_dir.name)
+    assert event.status == "completed"
+    assert event.audio_path == ""
+    assert event.transcript_text == "dictated text"
+    assert (event_dir / "transcript.txt").read_text(encoding="utf-8") == "dictated text"
+
+
+def test_invalid_event_ids_cannot_escape_history_directory(tmp_path):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist")
+    store = HistoryStore(cfg)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "event.json").write_text(
+        '{"id":"outside","created_at":"2026-05-29T12:00:00",'
+        '"source_type":"microphone","status":"completed","created_by":"test"}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="invalid history event id"):
+        store.delete_event("../outside")
+    assert outside.exists()
+
+    with pytest.raises(ValueError, match="invalid history event id"):
+        store.load_event(str(outside))
+
+
+def test_mark_stale_processing_failed_marks_processing_events(tmp_path):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist")
+    store = HistoryStore(cfg)
+    event = store.create_event(
+        source_type="audio_file",
+        created_by="tray",
+        original_path=Path("/home/me/pending.wav"),
+        engine="openai",
+        model="gpt-4o-mini-transcribe",
+        language="auto",
+    )
+
+    store.mark_stale_processing_failed()
+
+    failed = store.load_event(event.id)
+    assert failed.status == "failed"
+    assert failed.error == "Application stopped before this job finished."
+
+
+def test_list_events_skips_legacy_pair_with_unreadable_transcript(tmp_path):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist")
+    store = HistoryStore(cfg)
+    legacy_wav = tmp_path / "hist" / "20260529-120000.wav"
+    legacy_wav.parent.mkdir(parents=True)
+    legacy_wav.write_bytes(b"legacy")
+    (tmp_path / "hist" / "20260529-120000.txt").write_bytes(b"\xff")
+    source_audio = tmp_path / "source.wav"
+    source_audio.write_bytes(b"new")
+    event = store.create_event(
+        source_type="microphone",
+        created_by="dictation",
+        original_path=None,
+        engine="openai",
+        model="gpt-4o-mini-transcribe",
+        language="auto",
+    )
+    store.complete_event(event.id, source_audio, "new text")
+
+    events = store.list_events()
+
+    assert [listed.id for listed in events] == [event.id]
