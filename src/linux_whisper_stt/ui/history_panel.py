@@ -43,6 +43,10 @@ def open_audio(path: str, runner=subprocess.Popen) -> None:
         runner(["xdg-open", path])
 
 
+def _can_delete_event(event) -> bool:
+    return event is not None and not getattr(event, "legacy", False)
+
+
 def build_history_tab(Gtk, history_store, copy_fn, open_audio_fn=open_audio):
     selected_event = {"event": None}
 
@@ -107,7 +111,7 @@ def build_history_tab(Gtk, history_store, copy_fn, open_audio_fn=open_audio):
         )
         copy_button.set_sensitive(has_event)
         open_button.set_sensitive(bool(getattr(event, "audio_path", "") if has_event else ""))
-        delete_button.set_sensitive(has_event)
+        delete_button.set_sensitive(_can_delete_event(event))
 
     def clear_rows() -> None:
         row = list_box.get_first_child()
@@ -140,7 +144,7 @@ def build_history_tab(Gtk, history_store, copy_fn, open_audio_fn=open_audio):
 
     def on_delete(_button) -> None:
         event = selected_event["event"]
-        if event is None:
+        if not _can_delete_event(event):
             return
         history_store.delete_event(event.id)
         load_rows()

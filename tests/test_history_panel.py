@@ -22,6 +22,7 @@ class Event:
     original_name: str = ""
     audio_path: str = "/tmp/audio.wav"
     transcript_text: str = "hello"
+    legacy: bool = False
 
 
 def test_event_title_prefers_original_name_then_created_at_then_id():
@@ -111,6 +112,40 @@ def test_build_history_tab_selects_copies_opens_and_deletes_event():
     assert copied == ["hello"]
     assert opened == ["/tmp/audio.wav"]
     assert store.deleted == ["evt-1"]
+
+
+def test_build_history_tab_disables_and_ignores_delete_for_legacy_event():
+    event = Event(id="legacy", legacy=True)
+    store = FakeHistoryStore([event])
+    copied = []
+    opened = []
+
+    tab = build_history_tab(
+        FakeGtk,
+        store,
+        copy_fn=lambda text: copied.append(text),
+        open_audio_fn=lambda path: opened.append(path),
+    )
+
+    list_box = tab.children[0].child
+    list_box.select_row(list_box.rows[0])
+
+    buttons = tab.children[1].children[3]
+    copy_button = buttons.children[0]
+    open_button = buttons.children[1]
+    delete_button = buttons.children[2]
+
+    assert copy_button.sensitive is True
+    assert open_button.sensitive is True
+    assert delete_button.sensitive is False
+
+    copy_button.click()
+    open_button.click()
+    delete_button.click()
+
+    assert copied == ["hello"]
+    assert opened == ["/tmp/audio.wav"]
+    assert store.deleted == []
 
 
 class FakeHistoryStore:
