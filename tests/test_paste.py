@@ -25,23 +25,22 @@ def test_paste_uses_delayed_clipboard_paste_shortcut():
 
     assert sleeps == [0.15]
     assert calls == [
-        (
-            [
-                "ydotool",
-                "key",
-                "29:0",
-                "56:0",
-                "97:0",
-                "100:0",
-                "42:0",
-                "54:0",
-                "125:0",
-                "126:0",
-            ],
-            {"check": False},
-        ),
-        (
-            ["ydotool", "key", "29:1", "47:1", "47:0", "29:0"],
-            {"check": True},
-        ),
+        (["ydotool", "key", "ctrl+v"], {"check": True}),
     ]
+
+
+def test_paste_does_not_send_legacy_numeric_keycodes():
+    calls = []
+
+    def fake_runner(cmd, **kwargs):
+        calls.append(cmd)
+
+        class R:
+            returncode = 0
+
+        return R()
+
+    paste.paste_via_ydotool("ciao", runner=fake_runner, sleep_fn=lambda _: None)
+
+    sent_tokens = [token for call in calls for token in call[2:]]
+    assert not any(":" in token for token in sent_tokens)
