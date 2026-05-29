@@ -43,6 +43,7 @@ def build_controller(config, indicator, run_async, popup_fn=None):
     from .history import HistoryStore
 
     history = HistoryStore(config)
+    history.mark_stale_processing_failed()
     from .jobs import TranscriptionJobRunner
     from .output.clipboard import copy_to_clipboard
 

@@ -21,7 +21,15 @@ class FakeIndicator:
         self.states.append((state, detail))
 
 
-def test_build_controller_wires_file_job_runner(monkeypatch):
+class FakeHistoryStore:
+    def __init__(self, _config):
+        self.marked_stale_failed = False
+
+    def mark_stale_processing_failed(self):
+        self.marked_stale_failed = True
+
+
+def patch_build_controller_components(monkeypatch, history_factory=None):
     import linux_whisper_stt.audio.recorder
     import linux_whisper_stt.history
     import linux_whisper_stt.output.manager
@@ -58,8 +66,21 @@ def test_build_controller_wires_file_job_runner(monkeypatch):
     monkeypatch.setattr(
         linux_whisper_stt.history,
         "HistoryStore",
-        lambda _config: FakeComponent(),
+        history_factory or FakeHistoryStore,
     )
+
+
+def test_build_controller_marks_stale_processing_history_failed(monkeypatch):
+    history = FakeHistoryStore(Config())
+    patch_build_controller_components(monkeypatch, lambda _config: history)
+
+    build_controller(Config(), FakeIndicator(), lambda fn: fn())
+
+    assert history.marked_stale_failed is True
+
+
+def test_build_controller_wires_file_job_runner(monkeypatch):
+    patch_build_controller_components(monkeypatch)
 
     controller = build_controller(Config(), FakeIndicator(), lambda fn: fn())
 
@@ -69,44 +90,7 @@ def test_build_controller_wires_file_job_runner(monkeypatch):
 
 
 def test_build_controller_accepts_popup_fn(monkeypatch):
-    import linux_whisper_stt.audio.recorder
-    import linux_whisper_stt.history
-    import linux_whisper_stt.output.manager
-    import linux_whisper_stt.transcribe.local_backend
-    import linux_whisper_stt.transcribe.manager
-    import linux_whisper_stt.transcribe.openai_backend
-
-    monkeypatch.setattr(
-        linux_whisper_stt.audio.recorder, "Recorder", lambda **_kwargs: FakeComponent()
-    )
-    monkeypatch.setattr(
-        linux_whisper_stt.transcribe.openai_backend,
-        "OpenAITranscriber",
-        lambda **_kwargs: FakeComponent(),
-    )
-    monkeypatch.setattr(
-        linux_whisper_stt.transcribe.local_backend.LocalWhisperCppTranscriber,
-        "from_config",
-        lambda _config: FakeComponent(),
-    )
-    monkeypatch.setattr(
-        linux_whisper_stt.transcribe.manager,
-        "TranscriptionManager",
-        lambda *_args, **_kwargs: FakeComponent(),
-    )
-    monkeypatch.setattr(
-        linux_whisper_stt.output.manager,
-        "OutputManager",
-        lambda _config: FakeComponent(),
-    )
-    monkeypatch.setattr(
-        "linux_whisper_stt.daemon.Sounds", lambda *_args, **_kwargs: FakeComponent()
-    )
-    monkeypatch.setattr(
-        linux_whisper_stt.history,
-        "HistoryStore",
-        lambda _config: FakeComponent(),
-    )
+    patch_build_controller_components(monkeypatch)
 
     popups = []
     controller = build_controller(
