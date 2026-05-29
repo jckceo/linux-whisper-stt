@@ -1,17 +1,21 @@
+from pathlib import Path
+
 from linux_whisper_stt.config import Config
 from linux_whisper_stt.controller import Controller
-from linux_whisper_stt.history import HistoryStore
+from linux_whisper_stt.history import HistoryEvent, HistoryStore
 
 
-def test_save_writes_wav_and_txt(tmp_path):
+def test_save_writes_v2_microphone_event(tmp_path):
     cfg = Config()
     cfg.history.dir = str(tmp_path / "hist")
     wav = tmp_path / "rec.wav"
     wav.write_bytes(b"RIFFDATA")
     dest = HistoryStore(cfg).save(wav, "ciao mondo", stamp="20260529-120000")
-    assert dest == tmp_path / "hist" / "20260529-120000.wav"
+    assert dest == tmp_path / "hist" / "20260529-120000" / "audio.wav"
     assert dest.read_bytes() == b"RIFFDATA"
-    assert (tmp_path / "hist" / "20260529-120000.txt").read_text() == "ciao mondo"
+    assert (
+        tmp_path / "hist" / "20260529-120000" / "transcript.txt"
+    ).read_text() == "ciao mondo"
 
 
 def test_disabled_does_nothing(tmp_path):
@@ -76,3 +80,86 @@ def test_controller_calls_history(tmp_path):
     c.toggle()
     c.toggle()
     assert saved == [(wav, "ciao")]
+
+
+def test_save_event_writes_event_directory(tmp_path):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist")
+    source_audio = tmp_path / "source.wav"
+    source_audio.write_bytes(b"RIFFDATA")
+
+    store = HistoryStore(cfg)
+    event = store.create_event(
+        source_type="audio_file",
+        created_by="tray",
+        original_path=Path("/home/me/meeting.mp4"),
+        engine="openai",
+        model="gpt-4o-mini-transcribe",
+        language="it",
+    )
+    completed = store.complete_event(
+        event.id, source_audio, "ciao mondo", duration_seconds=12.5
+    )
+
+    event_dir = tmp_path / "hist" / event.id
+    assert isinstance(completed, HistoryEvent)
+    assert completed.status == "completed"
+    assert (event_dir / "event.json").exists()
+    assert (event_dir / "audio.wav").read_bytes() == b"RIFFDATA"
+    assert (event_dir / "transcript.txt").read_text(encoding="utf-8") == "ciao mondo"
+    assert completed.original_name == "meeting.mp4"
+    assert completed.duration_seconds == 12.5
+
+
+def test_list_events_includes_v2_and_legacy_pairs(tmp_path):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist")
+    store = HistoryStore(cfg)
+
+    legacy_wav = tmp_path / "hist" / "20260529-120000.wav"
+    legacy_wav.parent.mkdir(parents=True)
+    legacy_wav.write_bytes(b"legacy")
+    (tmp_path / "hist" / "20260529-120000.txt").write_text(
+        "legacy text", encoding="utf-8"
+    )
+
+    source_audio = tmp_path / "source.wav"
+    source_audio.write_bytes(b"new")
+    event = store.create_event(
+        source_type="microphone",
+        created_by="dictation",
+        original_path=None,
+        engine="openai",
+        model="gpt-4o-mini-transcribe",
+        language="auto",
+    )
+    store.complete_event(event.id, source_audio, "new text")
+
+    events = store.list_events()
+    assert [e.transcript_text for e in events] == ["new text", "legacy text"]
+    assert events[0].source_type == "microphone"
+    assert events[1].legacy is True
+
+
+def test_delete_event_removes_v2_directory_but_not_original_file(tmp_path):
+    cfg = Config()
+    cfg.history.dir = str(tmp_path / "hist")
+    original = tmp_path / "original.wav"
+    original.write_bytes(b"original")
+    prepared = tmp_path / "prepared.wav"
+    prepared.write_bytes(b"prepared")
+    store = HistoryStore(cfg)
+    event = store.create_event(
+        source_type="audio_file",
+        created_by="cli",
+        original_path=original,
+        engine="openai",
+        model="gpt-4o-mini-transcribe",
+        language="auto",
+    )
+    store.complete_event(event.id, prepared, "text")
+
+    store.delete_event(event.id)
+
+    assert original.exists()
+    assert not (tmp_path / "hist" / event.id).exists()

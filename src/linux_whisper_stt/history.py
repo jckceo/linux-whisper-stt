@@ -1,30 +1,219 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
+import uuid
+from dataclasses import asdict, dataclass, fields
 from datetime import datetime
 from pathlib import Path
 
 
+@dataclass
+class HistoryEvent:
+    id: str
+    created_at: str
+    source_type: str
+    status: str
+    created_by: str
+    original_path: str | None = None
+    original_name: str = ""
+    audio_path: str = ""
+    transcript_path: str = ""
+    engine: str = ""
+    model: str = ""
+    language: str = "auto"
+    duration_seconds: float | None = None
+    error: str = ""
+    legacy: bool = False
+    transcript_text: str = ""
+
+
 class HistoryStore:
-    """Persists each dictation (audio + transcribed text) to a folder the user
-    can browse. Files are named by timestamp: <stamp>.wav and <stamp>.txt."""
+    """Persists transcription history as structured event directories."""
 
     def __init__(self, config):
         self.config = config
 
+    def directory(self) -> Path:
+        return Path(os.path.expanduser(self.config.history.dir))
+
+    def create_event(
+        self,
+        source_type: str,
+        created_by: str,
+        original_path: Path | str | None,
+        engine: str,
+        model: str,
+        language: str,
+    ) -> HistoryEvent:
+        if not self.config.history.enabled:
+            return HistoryEvent(
+                id="disabled",
+                created_at=datetime.now().isoformat(timespec="seconds"),
+                source_type=source_type,
+                status="disabled",
+                created_by=created_by,
+                original_path=str(original_path) if original_path is not None else None,
+                original_name=Path(original_path).name if original_path is not None else "",
+                engine=engine,
+                model=model,
+                language=language,
+            )
+
+        event = HistoryEvent(
+            id=self._new_event_id(),
+            created_at=datetime.now().isoformat(timespec="seconds"),
+            source_type=source_type,
+            status="processing",
+            created_by=created_by,
+            original_path=str(original_path) if original_path is not None else None,
+            original_name=Path(original_path).name if original_path is not None else "",
+            engine=engine,
+            model=model,
+            language=language,
+        )
+        self.update_event(event)
+        return event
+
+    def complete_event(
+        self,
+        event_id: str,
+        audio_source: Path,
+        transcript: str,
+        duration_seconds: float | None = None,
+    ) -> HistoryEvent:
+        event = self.load_event(event_id)
+        if event.status == "disabled":
+            return event
+
+        event_dir = self.directory() / event_id
+        event_dir.mkdir(parents=True, exist_ok=True)
+        audio_dest = event_dir / "audio.wav"
+        transcript_dest = event_dir / "transcript.txt"
+        shutil.copyfile(audio_source, audio_dest)
+        transcript_dest.write_text(transcript or "", encoding="utf-8")
+
+        event.status = "completed"
+        event.audio_path = str(audio_dest)
+        event.transcript_path = str(transcript_dest)
+        event.duration_seconds = duration_seconds
+        event.error = ""
+        event.transcript_text = transcript or ""
+        self.update_event(event)
+        return event
+
+    def fail_event(self, event_id: str, message: str) -> HistoryEvent:
+        event = self.load_event(event_id)
+        if event.status == "disabled":
+            return event
+        event.status = "failed"
+        event.error = message
+        self.update_event(event)
+        return event
+
+    def update_event(self, event: HistoryEvent) -> None:
+        if not self.config.history.enabled or event.status == "disabled":
+            return
+        event_dir = self.directory() / event.id
+        event_dir.mkdir(parents=True, exist_ok=True)
+        data = asdict(event)
+        data.pop("transcript_text", None)
+        (event_dir / "event.json").write_text(
+            json.dumps(data, indent=2, sort_keys=True), encoding="utf-8"
+        )
+
+    def load_event(self, event_id: str) -> HistoryEvent:
+        if event_id == "disabled":
+            return HistoryEvent(
+                id="disabled",
+                created_at=datetime.now().isoformat(timespec="seconds"),
+                source_type="",
+                status="disabled",
+                created_by="",
+            )
+
+        event_json = self.directory() / event_id / "event.json"
+        data = json.loads(event_json.read_text(encoding="utf-8"))
+        event_fields = {field.name for field in fields(HistoryEvent)}
+        event = HistoryEvent(**{k: v for k, v in data.items() if k in event_fields})
+        transcript_path = Path(event.transcript_path) if event.transcript_path else (
+            self.directory() / event_id / "transcript.txt"
+        )
+        if transcript_path.exists():
+            event.transcript_text = transcript_path.read_text(encoding="utf-8")
+        return event
+
+    def list_events(self) -> list[HistoryEvent]:
+        directory = self.directory()
+        if not directory.exists():
+            return []
+
+        events: list[tuple[float, HistoryEvent]] = []
+        for child in directory.iterdir():
+            if child.is_dir() and (child / "event.json").exists():
+                try:
+                    event = self.load_event(child.name)
+                except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                    continue
+                events.append(((child / "event.json").stat().st_mtime, event))
+
+        for wav_path in directory.glob("*.wav"):
+            txt_path = wav_path.with_suffix(".txt")
+            if not txt_path.exists():
+                continue
+            try:
+                created_at = datetime.strptime(
+                    wav_path.stem, "%Y%m%d-%H%M%S"
+                ).isoformat()
+            except ValueError:
+                created_at = datetime.fromtimestamp(wav_path.stat().st_mtime).isoformat()
+            event = HistoryEvent(
+                id=wav_path.stem,
+                created_at=created_at,
+                source_type="microphone",
+                status="completed",
+                created_by="dictation",
+                audio_path=str(wav_path),
+                transcript_path=str(txt_path),
+                legacy=True,
+                transcript_text=txt_path.read_text(encoding="utf-8"),
+            )
+            sort_time = max(wav_path.stat().st_mtime, txt_path.stat().st_mtime)
+            events.append((sort_time, event))
+
+        return [event for _, event in sorted(events, key=lambda item: item[0], reverse=True)]
+
+    def delete_event(self, event_id: str) -> None:
+        event_dir = self.directory() / event_id
+        if event_dir.is_dir() and (event_dir / "event.json").exists():
+            shutil.rmtree(event_dir)
+
+    def mark_stale_processing_failed(self) -> None:
+        for event in self.list_events():
+            if not event.legacy and event.status == "processing":
+                self.fail_event(
+                    event.id, "Application stopped before this job finished."
+                )
+
     def save(self, wav_path: Path, text: str, stamp: str | None = None) -> Path | None:
         if not self.config.history.enabled:
             return None
-        directory = Path(os.path.expanduser(self.config.history.dir))
-        directory.mkdir(parents=True, exist_ok=True)
-        if stamp is None:
-            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        wav_dest: Path | None = directory / f"{stamp}.wav"
-        txt_dest = directory / f"{stamp}.txt"
-        try:
-            shutil.copyfile(wav_path, wav_dest)
-        except OSError:
-            wav_dest = None
-        txt_dest.write_text(text or "", encoding="utf-8")
-        return wav_dest
+        event = self.create_event(
+            source_type="microphone",
+            created_by="dictation",
+            original_path=None,
+            engine="",
+            model="",
+            language=getattr(self.config.general, "language", "auto"),
+        )
+        if stamp is not None:
+            self.delete_event(event.id)
+            event.id = stamp
+            self.update_event(event)
+        completed = self.complete_event(event.id, wav_path, text)
+        return Path(completed.audio_path) if completed.audio_path else None
+
+    def _new_event_id(self) -> str:
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        return f"{stamp}-{uuid.uuid4().hex[:8]}"
