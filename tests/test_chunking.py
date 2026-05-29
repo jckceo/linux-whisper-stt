@@ -17,6 +17,11 @@ def test_plan_chunks_returns_single_chunk_when_under_limit():
     assert chunks == [ChunkPlan(index=0, start_seconds=0.0, duration_seconds=120.0)]
 
 
+def test_plan_chunks_allows_positional_duration_and_estimated_bytes():
+    chunks = plan_chunks(120, 10_000_000, target_bytes=22_000_000)
+    assert chunks == [ChunkPlan(index=0, start_seconds=0.0, duration_seconds=120.0)]
+
+
 def test_plan_chunks_splits_by_estimated_size():
     chunks = plan_chunks(
         duration_seconds=600,

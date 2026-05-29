@@ -17,7 +17,6 @@ class ChunkPlan:
 
 
 def plan_chunks(
-    *,
     duration_seconds: float,
     estimated_bytes: int,
     target_bytes: int = OPENAI_TARGET_UPLOAD_BYTES,
