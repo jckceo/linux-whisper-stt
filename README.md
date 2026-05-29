@@ -27,15 +27,33 @@ The app expects:
 - GNOME custom keybindings through `gsettings`
 - GTK/libadwaita and Ayatana AppIndicator bindings
 - `wl-clipboard`
-- `ydotool` and `ydotoold` for auto-paste
+- Optional `ydotool` and `ydotoold` integration for auto-paste
 - `pw-record` for audio capture
 
 ## Install
 
-Clone the repository, then run:
+Clone the repository, then run the conservative base installer:
 
 ```bash
 ./install.sh
+```
+
+Enable Wayland auto-paste:
+
+```bash
+./install.sh --with-autopaste
+```
+
+Enable offline transcription:
+
+```bash
+./install.sh --with-local-whisper
+```
+
+Install everything:
+
+```bash
+./install.sh --with-autopaste --with-local-whisper
 ```
 
 The installer:
@@ -43,11 +61,11 @@ The installer:
 1. Installs required Ubuntu packages with `apt-get`.
 2. Creates `.venv` with `--system-site-packages` so PyGObject can use system GTK bindings.
 3. Installs this package in editable mode.
-4. Installs and enables a user `ydotoold` systemd service.
-5. Builds `whisper.cpp` and downloads the `small` model for local transcription.
+4. Optionally installs and enables a user `ydotoold` systemd service when `--with-autopaste` is passed.
+5. Optionally builds `whisper.cpp` and downloads the `small` model for local transcription when `--with-local-whisper` is passed.
 6. Writes an autostart file to `~/.config/autostart/linux-whisper-stt.desktop`.
 
-After installation, log out and back in once so group permissions for `ydotool` apply.
+If you enabled auto-paste, log out and back in once so group permissions for `ydotool` apply.
 
 Then open Settings:
 
@@ -181,7 +199,7 @@ model = "gpt-4o-mini-transcribe"
 
 ### Local whisper.cpp
 
-The installer builds `whisper.cpp`, downloads the `small` model, and stores the model under:
+When run with `--with-local-whisper`, the installer builds `whisper.cpp`, downloads the `small` model, and stores the model under:
 
 ```text
 ~/.local/share/linux-whisper-stt/models
