@@ -3,6 +3,7 @@ from linux_whisper_stt.ui.setup_window import (
     build_window_shell,
     paste_mode_from_auto_paste,
     present_existing_window,
+    settings_tab_labels,
 )
 
 
@@ -98,6 +99,10 @@ def test_apply_startup_preference_uses_systemd_when_service_is_installed():
 def test_paste_mode_from_auto_paste():
     assert paste_mode_from_auto_paste(True) == "auto"
     assert paste_mode_from_auto_paste(False) == "clipboard_only"
+
+
+def test_settings_tab_labels():
+    assert settings_tab_labels() == ["General", "History"]
 
 
 def test_build_window_shell_adds_close_button():

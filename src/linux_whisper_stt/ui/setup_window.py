@@ -25,6 +25,10 @@ def build_window_shell(Adw, Gtk, win, content):
     return toolbar
 
 
+def settings_tab_labels() -> list[str]:
+    return ["General", "History"]
+
+
 def apply_startup_preference(
     enabled: bool,
     install_fn=None,
@@ -60,8 +64,11 @@ def run_setup() -> int:
     from ..autostart import autostart_enabled
     from ..config import load_config, save_config
     from ..gnome_shortcut import register_shortcut
+    from ..history import HistoryStore
+    from ..output.clipboard import copy_to_clipboard
     from ..secrets import get_api_key, set_api_key
     from ..systemd import service_installed
+    from .history_panel import build_history_tab
 
     config = load_config()
 
@@ -73,37 +80,39 @@ def run_setup() -> int:
 
         win = Adw.ApplicationWindow(application=application)
         win.set_title("linux-whisper-stt — Setup")
-        win.set_default_size(460, 360)
+        win.set_default_size(720, 520)
 
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        box.set_margin_top(18)
-        box.set_margin_bottom(18)
-        box.set_margin_start(18)
-        box.set_margin_end(18)
+        notebook = Gtk.Notebook()
+
+        general_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        general_box.set_margin_top(18)
+        general_box.set_margin_bottom(18)
+        general_box.set_margin_start(18)
+        general_box.set_margin_end(18)
 
         # API key
-        box.append(Gtk.Label(label="OpenAI API key", xalign=0))
+        general_box.append(Gtk.Label(label="OpenAI API key", xalign=0))
         key_entry = Gtk.PasswordEntry(show_peek_icon=True)
         existing = get_api_key()
         if existing:
             key_entry.set_text(existing)
-        box.append(key_entry)
+        general_box.append(key_entry)
 
         # Engine
-        box.append(Gtk.Label(label="Engine", xalign=0))
+        general_box.append(Gtk.Label(label="Engine", xalign=0))
         engine_combo = Gtk.DropDown.new_from_strings(["openai", "local"])
         engine_combo.set_selected(0 if config.general.engine == "openai" else 1)
-        box.append(engine_combo)
+        general_box.append(engine_combo)
 
         # Language
-        box.append(Gtk.Label(label="Language", xalign=0))
+        general_box.append(Gtk.Label(label="Language", xalign=0))
         lang_entry = Gtk.Entry(text=config.general.language)
-        box.append(lang_entry)
+        general_box.append(lang_entry)
 
         # Shortcut
-        box.append(Gtk.Label(label="Shortcut", xalign=0))
+        general_box.append(Gtk.Label(label="Shortcut", xalign=0))
         shortcut_entry = Gtk.Entry(text=config.shortcut.binding)
-        box.append(shortcut_entry)
+        general_box.append(shortcut_entry)
 
         auto_paste_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         auto_paste_label = Gtk.Label(label="Auto-paste", xalign=0)
@@ -112,7 +121,7 @@ def run_setup() -> int:
         auto_paste_switch = Gtk.Switch()
         auto_paste_switch.set_active(config.general.paste_mode == "auto")
         auto_paste_row.append(auto_paste_switch)
-        box.append(auto_paste_row)
+        general_box.append(auto_paste_row)
 
         startup_service_installed = service_installed()
         startup_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -124,7 +133,7 @@ def run_setup() -> int:
         if startup_service_installed:
             startup_switch.set_sensitive(False)
         startup_row.append(startup_switch)
-        box.append(startup_row)
+        general_box.append(startup_row)
 
         status = Gtk.Label(label="", xalign=0)
 
@@ -159,10 +168,16 @@ def run_setup() -> int:
 
         save_btn = Gtk.Button(label="Save & register shortcut")
         save_btn.connect("clicked", on_save)
-        box.append(save_btn)
-        box.append(status)
+        general_box.append(save_btn)
+        general_box.append(status)
 
-        build_window_shell(Adw, Gtk, win, box)
+        notebook.append_page(general_box, Gtk.Label(label=settings_tab_labels()[0]))
+        notebook.append_page(
+            build_history_tab(Gtk, HistoryStore(config), copy_to_clipboard),
+            Gtk.Label(label=settings_tab_labels()[1]),
+        )
+
+        build_window_shell(Adw, Gtk, win, notebook)
         win.present()
 
     app.connect("activate", on_activate)
