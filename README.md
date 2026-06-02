@@ -442,7 +442,7 @@ The test suite covers config parsing, IPC, recorder behavior, OpenAI/local trans
 
 ## Development Attribution
 
-Developed with Codex 5.5 xhigh.
+Developed with the assistance of Anthropic's Claude and OpenAI's Codex.
 
 ## License
 

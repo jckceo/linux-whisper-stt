@@ -11,9 +11,12 @@ def _section(text: str, heading: str) -> str:
     return text[start:next_heading]
 
 
-def test_readme_mentions_codex_development():
-    readme = ROOT / "README.md"
-    assert "Developed with Codex 5.5 xhigh" in readme.read_text()
+def test_readme_attributes_claude_and_codex():
+    readme = (ROOT / "README.md").read_text()
+    attribution = _section(readme, "## Development Attribution")
+    assert "Anthropic's Claude" in attribution
+    assert "OpenAI's Codex" in attribution
+    assert "Codex 5.5 xhigh" not in readme
 
 
 def test_readme_security_notes_describe_history_privacy():
