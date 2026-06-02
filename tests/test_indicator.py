@@ -1,5 +1,5 @@
 from linux_whisper_stt.controller import State
-from linux_whisper_stt.tray.icon_animator import Blink, Flash, Static, plan_icon
+from linux_whisper_stt.tray.icon_animator import Blink, Flash, IconAnimator, Static, plan_icon
 from linux_whisper_stt.tray.indicator import (
     PrintIndicator,
     build_settings_command,
@@ -96,3 +96,116 @@ def test_plan_icon_idle_after_error_is_static_neutral():
 
 def test_plan_icon_error_is_static_red():
     assert plan_icon(State.IDLE, State.ERROR) == Static("error")
+
+
+class FakeClock:
+    def __init__(self):
+        self.scheduled = []   # (id, ms, callback)
+        self.cancelled = []
+        self._next = 1
+
+    def schedule(self, ms, callback):
+        sid = self._next
+        self._next += 1
+        self.scheduled.append((sid, ms, callback))
+        return sid
+
+    def cancel(self, sid):
+        self.cancelled.append(sid)
+
+    def fire_last(self):
+        _sid, _ms, callback = self.scheduled[-1]
+        return callback()
+
+
+def _make_animator(clock, icons):
+    return IconAnimator(
+        set_icon=icons.append,
+        schedule=clock.schedule,
+        cancel=clock.cancel,
+        blink_ms=600,
+        flash_ms=1500,
+    )
+
+
+def test_animator_recording_blinks_between_frames():
+    clock, icons = FakeClock(), []
+    animator = _make_animator(clock, icons)
+
+    animator.apply(State.RECORDING)
+    assert icons[-1] == "recording_on"
+    assert clock.scheduled[-1][1] == 600
+
+    assert clock.fire_last() is True  # blink keeps repeating
+    assert icons[-1] == "recording_off"
+    clock.fire_last()
+    assert icons[-1] == "recording_on"
+
+
+def test_animator_static_state_cancels_running_blink():
+    clock, icons = FakeClock(), []
+    animator = _make_animator(clock, icons)
+
+    animator.apply(State.RECORDING)
+    blink_sid = clock.scheduled[-1][0]
+    animator.apply(State.TRANSCRIBING)
+
+    assert blink_sid in clock.cancelled
+    assert icons[-1] == "busy"
+
+
+def test_animator_idle_after_job_flashes_done_then_settles():
+    clock, icons = FakeClock(), []
+    animator = _make_animator(clock, icons)
+
+    animator.apply(State.TRANSCRIBING)
+    animator.apply(State.IDLE)
+    assert icons[-1] == "done"
+    assert clock.scheduled[-1][1] == 1500
+
+    assert clock.fire_last() is False  # one-shot
+    assert icons[-1] == "idle"
+
+
+def test_animator_idle_at_startup_is_neutral_without_flash():
+    clock, icons = FakeClock(), []
+    animator = _make_animator(clock, icons)
+
+    animator.apply(State.IDLE)
+    assert icons == ["idle"]
+    assert clock.scheduled == []
+
+
+def test_animator_error_is_static_red():
+    clock, icons = FakeClock(), []
+    animator = _make_animator(clock, icons)
+
+    animator.apply(State.ERROR)
+    assert icons[-1] == "error"
+    assert clock.scheduled == []
+
+
+def test_animator_recording_reapplied_while_blinking_resets_timer():
+    clock, icons = FakeClock(), []
+    animator = _make_animator(clock, icons)
+
+    animator.apply(State.RECORDING)
+    first_sid = clock.scheduled[-1][0]
+    animator.apply(State.RECORDING)
+
+    assert first_sid in clock.cancelled          # old blink timer cancelled
+    assert clock.scheduled[-1][0] != first_sid   # a fresh timer was scheduled
+    assert icons[-1] == "recording_on"
+
+
+def test_animator_flash_interrupted_by_new_state_cancels_flash():
+    clock, icons = FakeClock(), []
+    animator = _make_animator(clock, icons)
+
+    animator.apply(State.TRANSCRIBING)
+    animator.apply(State.IDLE)               # starts the done->idle flash
+    flash_sid = clock.scheduled[-1][0]
+    animator.apply(State.ERROR)              # new state interrupts the flash
+
+    assert flash_sid in clock.cancelled
+    assert icons[-1] == "error"
