@@ -6,18 +6,7 @@ from pathlib import Path
 from ..assets import asset_path
 from ..cli import entrypoint
 from ..controller import State
-
-_ICON_NAMES = {
-    State.IDLE: "idle",
-    State.RECORDING: "recording",
-    State.TRANSCRIBING: "busy",
-    State.PASTING: "busy",
-    State.ERROR: "error",
-}
-
-
-def icon_for_state(state: State) -> str:
-    return _ICON_NAMES[state]
+from .icon_animator import icon_for_state
 
 
 def build_settings_command(entrypoint_fn=entrypoint) -> list[str]:

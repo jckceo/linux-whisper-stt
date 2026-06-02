@@ -1,4 +1,5 @@
 from linux_whisper_stt.controller import State
+from linux_whisper_stt.tray.icon_animator import Blink, Flash, Static, plan_icon
 from linux_whisper_stt.tray.indicator import (
     PrintIndicator,
     build_settings_command,
@@ -69,3 +70,29 @@ def test_file_filter_patterns_include_audio_and_video():
     assert "*.wav" in patterns
     assert "*.mp4" in patterns
     assert "*.mkv" in patterns
+
+
+def test_plan_icon_idle_at_startup_is_static_neutral():
+    assert plan_icon(None, State.IDLE) == Static("idle")
+
+
+def test_plan_icon_recording_blinks_red():
+    assert plan_icon(State.IDLE, State.RECORDING) == Blink("recording_on", "recording_off")
+
+
+def test_plan_icon_transcribing_and_pasting_are_static_busy():
+    assert plan_icon(State.RECORDING, State.TRANSCRIBING) == Static("busy")
+    assert plan_icon(State.TRANSCRIBING, State.PASTING) == Static("busy")
+
+
+def test_plan_icon_idle_after_active_job_flashes_done():
+    assert plan_icon(State.PASTING, State.IDLE) == Flash("done", "idle")
+    assert plan_icon(State.TRANSCRIBING, State.IDLE) == Flash("done", "idle")
+
+
+def test_plan_icon_idle_after_error_is_static_neutral():
+    assert plan_icon(State.ERROR, State.IDLE) == Static("idle")
+
+
+def test_plan_icon_error_is_static_red():
+    assert plan_icon(State.IDLE, State.ERROR) == Static("error")
