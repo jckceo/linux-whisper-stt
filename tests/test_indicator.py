@@ -1,3 +1,4 @@
+from linux_whisper_stt.assets import asset_path
 from linux_whisper_stt.controller import State
 from linux_whisper_stt.tray.icon_animator import Blink, Flash, IconAnimator, Static, plan_icon
 from linux_whisper_stt.tray.indicator import (
@@ -7,6 +8,11 @@ from linux_whisper_stt.tray.indicator import (
     icon_for_state,
     open_settings_once,
 )
+
+
+def test_required_tray_icons_exist():
+    for name in ("idle", "recording_on", "recording_off", "busy", "done", "error"):
+        assert asset_path("icons", name + ".png").exists(), name
 
 
 def test_icon_mapping_distinct_for_each_state():
