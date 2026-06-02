@@ -6,7 +6,7 @@ from pathlib import Path
 from ..assets import asset_path
 from ..cli import entrypoint
 from ..controller import State
-from .icon_animator import icon_for_state
+from .icon_animator import IconAnimator
 
 
 def build_settings_command(entrypoint_fn=entrypoint) -> list[str]:
@@ -71,6 +71,11 @@ class TrayIndicator:
         )
         self.indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
         self._status_item = None
+        self._animator = IconAnimator(
+            set_icon=self._set_icon,
+            schedule=self._GLib.timeout_add,
+            cancel=self._GLib.source_remove,
+        )
         self._build_menu()
 
     def bind_controller(self, controller) -> None:
@@ -143,9 +148,12 @@ class TrayIndicator:
         # Called from worker threads -> marshal onto GTK main loop.
         self._GLib.idle_add(self._apply_state, state, detail)
 
+    def _set_icon(self, name: str) -> None:
+        path = asset_path("icons", name + ".png")
+        self.indicator.set_icon_full(str(path), name)
+
     def _apply_state(self, state: State, detail: str):
-        icon_path = asset_path("icons", icon_for_state(state) + ".png")
-        self.indicator.set_icon_full(str(icon_path), state.value)
+        self._animator.apply(state)
         label = state.value.capitalize()
         if detail:
             label += f" — {detail}"

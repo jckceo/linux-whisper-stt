@@ -1,11 +1,17 @@
 from linux_whisper_stt.assets import asset_path
 from linux_whisper_stt.controller import State
-from linux_whisper_stt.tray.icon_animator import Blink, Flash, IconAnimator, Static, plan_icon
+from linux_whisper_stt.tray.icon_animator import (
+    Blink,
+    Flash,
+    IconAnimator,
+    Static,
+    icon_for_state,
+    plan_icon,
+)
 from linux_whisper_stt.tray.indicator import (
     PrintIndicator,
     build_settings_command,
     file_filter_patterns,
-    icon_for_state,
     open_settings_once,
 )
 
