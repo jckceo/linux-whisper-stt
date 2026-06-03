@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -53,6 +54,68 @@ def plan_chunks(
             )
         )
     return chunks
+
+
+_SILENCE_START = re.compile(r"silence_start:\s*([0-9.]+)")
+_SILENCE_END = re.compile(r"silence_end:\s*([0-9.]+)")
+
+
+def parse_silencedetect(stderr: str) -> list[tuple[float, float]]:
+    """Pair ffmpeg silencedetect start/end markers into (start, end) intervals."""
+    silences: list[tuple[float, float]] = []
+    pending: float | None = None
+    for line in stderr.splitlines():
+        start = _SILENCE_START.search(line)
+        if start:
+            pending = float(start.group(1))
+            continue
+        end = _SILENCE_END.search(line)
+        if end and pending is not None:
+            silences.append((pending, float(end.group(1))))
+            pending = None
+    return silences
+
+
+def plan_silence_chunks(
+    duration_seconds: float,
+    silences: list[tuple[float, float]],
+    target_seconds: float = 55.0,
+    min_seconds: float = 20.0,
+) -> list[ChunkPlan]:
+    """Plan chunks cut only at silence midpoints, never mid-speech.
+
+    Cuts at the midpoint of the first silence at/after each running target. If no
+    qualifying silence exists, no cut is made (the chunk just runs longer), so a word
+    is never split. A too-short trailing chunk is merged into the previous one.
+    """
+    if duration_seconds <= 0:
+        return [ChunkPlan(index=0, start_seconds=0.0, duration_seconds=0.0)]
+
+    midpoints = [
+        (start + end) / 2
+        for start, end in silences
+        if 0.0 < (start + end) / 2 < duration_seconds
+    ]
+    cuts: list[float] = []
+    last = 0.0
+    for midpoint in midpoints:
+        if midpoint - last >= target_seconds:
+            cuts.append(round(midpoint, 3))
+            last = midpoint
+
+    boundaries = [0.0, *cuts, round(duration_seconds, 3)]
+    spans = [(boundaries[i], boundaries[i + 1]) for i in range(len(boundaries) - 1)]
+    if len(spans) >= 2 and (spans[-1][1] - spans[-1][0]) < min_seconds:
+        spans = spans[:-2] + [(spans[-2][0], spans[-1][1])]
+
+    return [
+        ChunkPlan(
+            index=i,
+            start_seconds=round(start, 3),
+            duration_seconds=round(end - start, 3),
+        )
+        for i, (start, end) in enumerate(spans)
+    ]
 
 
 def build_export_chunk_command(source: Path, destination: Path, chunk: ChunkPlan) -> list[str]:

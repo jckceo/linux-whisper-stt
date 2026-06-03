@@ -7,7 +7,9 @@ from linux_whisper_stt.media.chunking import (
     estimate_mp3_bytes,
     export_chunks,
     merge_transcripts,
+    parse_silencedetect,
     plan_chunks,
+    plan_silence_chunks,
 )
 
 
@@ -190,3 +192,48 @@ def test_export_chunks_failure_uses_fallback_message_and_removes_outputs(tmp_pat
 
 def test_merge_transcripts_keeps_order_and_spacing():
     assert merge_transcripts([" uno ", "", "due\n", "tre"]) == "uno\n\ndue\n\ntre"
+
+
+def test_parse_silencedetect_pairs_starts_and_ends():
+    stderr = (
+        "[silencedetect @ 0x1] silence_start: 12.5\n"
+        "[silencedetect @ 0x1] silence_end: 13.2 | silence_duration: 0.7\n"
+        "[silencedetect @ 0x1] silence_start: 60.0\n"
+        "[silencedetect @ 0x1] silence_end: 61.0 | silence_duration: 1.0\n"
+    )
+    assert parse_silencedetect(stderr) == [(12.5, 13.2), (60.0, 61.0)]
+
+
+def test_parse_silencedetect_ignores_unmatched_trailing_start():
+    stderr = "silence_start: 5.0\nsilence_end: 6.0\nsilence_start: 99.0\n"
+    assert parse_silencedetect(stderr) == [(5.0, 6.0)]
+
+
+def test_plan_silence_chunks_no_silence_is_single_chunk():
+    plans = plan_silence_chunks(300.0, [], target_seconds=55.0, min_seconds=20.0)
+    assert plans == [ChunkPlan(index=0, start_seconds=0.0, duration_seconds=300.0)]
+
+
+def test_plan_silence_chunks_cuts_at_silence_midpoints_after_target():
+    silences = [(60.0, 61.0), (130.0, 131.0)]
+    plans = plan_silence_chunks(180.0, silences, target_seconds=55.0, min_seconds=20.0)
+    assert plans == [
+        ChunkPlan(index=0, start_seconds=0.0, duration_seconds=60.5),
+        ChunkPlan(index=1, start_seconds=60.5, duration_seconds=70.0),
+        ChunkPlan(index=2, start_seconds=130.5, duration_seconds=49.5),
+    ]
+
+
+def test_plan_silence_chunks_skips_silence_before_target():
+    silences = [(10.0, 10.5), (60.0, 61.0)]
+    plans = plan_silence_chunks(120.0, silences, target_seconds=55.0, min_seconds=20.0)
+    assert plans == [
+        ChunkPlan(index=0, start_seconds=0.0, duration_seconds=60.5),
+        ChunkPlan(index=1, start_seconds=60.5, duration_seconds=59.5),
+    ]
+
+
+def test_plan_silence_chunks_merges_short_trailing_chunk():
+    silences = [(60.0, 61.0)]
+    plans = plan_silence_chunks(70.5, silences, target_seconds=55.0, min_seconds=20.0)
+    assert plans == [ChunkPlan(index=0, start_seconds=0.0, duration_seconds=70.5)]
