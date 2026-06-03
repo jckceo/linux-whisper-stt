@@ -66,6 +66,17 @@ class FakeSounds:
         self.events.append("stop")
 
 
+class FakeMedia:
+    def __init__(self):
+        self.events = []
+
+    def pause(self):
+        self.events.append("pause")
+
+    def resume(self):
+        self.events.append("resume")
+
+
 def make_controller(**overrides):
     recorder = overrides.get("recorder", FakeRecorder())
     transcription = overrides.get("transcription", FakeTranscription())
@@ -73,7 +84,10 @@ def make_controller(**overrides):
     indicator = overrides.get("indicator", FakeIndicator())
     sounds = overrides.get("sounds", FakeSounds())
     config = overrides.get("config", Config())
-    c = Controller(recorder, transcription, output, indicator, sounds, config)
+    media = overrides.get("media")
+    c = Controller(
+        recorder, transcription, output, indicator, sounds, config, media=media
+    )
     return c, recorder, transcription, output, indicator, sounds
 
 
@@ -136,6 +150,33 @@ def test_sounds_disabled_by_config():
     c, _, _, _, _, sounds = make_controller(config=cfg)
     c.toggle()
     assert sounds.events == []
+
+
+def test_media_paused_on_record_and_resumed_on_stop():
+    media = FakeMedia()
+    c, *_ = make_controller(media=media)
+    c.toggle()  # start
+    assert media.events == ["pause"]
+    c.toggle()  # stop -> transcribe (run_async sync in tests)
+    assert media.events == ["pause", "resume"]
+
+
+def test_media_not_paused_when_disabled_but_still_resumed():
+    cfg = Config()
+    cfg.general.pause_on_recording = False
+    media = FakeMedia()
+    c, *_ = make_controller(config=cfg, media=media)
+    c.toggle()  # start -> no pause
+    assert media.events == []
+    c.toggle()  # stop -> resume is unconditional (no-op safe)
+    assert media.events == ["resume"]
+
+
+def test_no_media_controller_is_safe():
+    c, *_ = make_controller()  # media=None
+    c.toggle()
+    c.toggle()
+    assert c.state == State.IDLE
 
 
 def test_status_dict():

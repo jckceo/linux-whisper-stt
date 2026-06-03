@@ -14,6 +14,7 @@ class GeneralConfig:
     language: str = "auto"          # auto | it | en | ...
     paste_mode: str = "auto"        # auto | clipboard_only
     sounds: bool = True
+    pause_on_recording: bool = True  # pause playing MPRIS media while recording
 
 
 @dataclass

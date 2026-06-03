@@ -18,6 +18,7 @@ Linux desktop dictation with a global shortcut, tray indicator, OpenAI or local 
 - Autostart at login through a desktop entry
 - Local audio and video file transcription from the tray, CLI, or file manager
 - Per-event history with the recorded WAV/audio file and transcribed text
+- Pause on Recording: automatically pauses playing media (any MPRIS player) while recording so it does not bleed into the captured audio, then resumes it when recording stops (on by default, toggle in Settings)
 
 ## Platform
 
@@ -31,6 +32,7 @@ The app expects:
 - `wl-clipboard`
 - Optional `ydotool` and `ydotoold` integration for auto-paste
 - `pw-record` for audio capture
+- Pause on Recording talks to MPRIS players over D-Bus through the GTK/GLib bindings already listed, so it needs no extra package
 
 ## Install
 

@@ -8,6 +8,7 @@ def test_defaults():
     assert c.general.language == "auto"
     assert c.general.paste_mode == "auto"
     assert c.general.sounds is True
+    assert c.general.pause_on_recording is True
     assert c.shortcut.binding == "<Control><Alt>space"
     assert c.openai.model == "gpt-4o-mini-transcribe"
     assert c.local.model == "small"

@@ -88,6 +88,9 @@ def build_controller(config, indicator, run_async, popup_fn=None):
         popup_fn=popup_fn or (lambda _event: None),
         progress_fn=report_job_progress,
     )
+    from .media.mpris import MprisController
+
+    media = MprisController()
     return Controller(
         recorder,
         transcription,
@@ -98,6 +101,7 @@ def build_controller(config, indicator, run_async, popup_fn=None):
         run_async=run_async,
         history=history,
         file_jobs=file_jobs,
+        media=media,
     )
 
 

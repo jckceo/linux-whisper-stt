@@ -25,6 +25,7 @@ class Controller:
         run_async: Callable[[Callable[[], None]], None] | None = None,
         history=None,
         file_jobs=None,
+        media=None,
     ):
         self.recorder = recorder
         self.transcription = transcription
@@ -34,6 +35,7 @@ class Controller:
         self.config = config
         self.history = history
         self.file_jobs = file_jobs
+        self.media = media
         # default: run inline (deterministic for tests). Daemon injects a thread runner.
         self._run_async = run_async or (lambda fn: fn())
         self.state = State.IDLE
@@ -87,11 +89,18 @@ class Controller:
         self._set_state(State.RECORDING)
         if self.config.general.sounds:
             self.sounds.play_start()
+        if self.media is not None and self.config.general.pause_on_recording:
+            self.media.pause()
 
     def _end_recording(self) -> None:
         if self.config.general.sounds:
             self.sounds.play_stop()
         wav_path = self.recorder.stop()
+        # Resume only after capture has stopped, so resumed audio can't bleed
+        # into the recording tail. Always resume whatever we paused, even if the
+        # flag was toggled off mid-recording; no-op when nothing was paused.
+        if self.media is not None:
+            self.media.resume()
         self._set_state(State.TRANSCRIBING)
         self._run_async(lambda: self._transcribe_and_deliver(wav_path))
 

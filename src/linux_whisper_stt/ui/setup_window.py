@@ -141,6 +141,17 @@ def run_setup() -> int:
         auto_paste_row.append(auto_paste_switch)
         general_box.append(auto_paste_row)
 
+        pause_on_recording_row = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL, spacing=12
+        )
+        pause_on_recording_label = Gtk.Label(label="Pause on Recording", xalign=0)
+        pause_on_recording_label.set_hexpand(True)
+        pause_on_recording_row.append(pause_on_recording_label)
+        pause_on_recording_switch = Gtk.Switch()
+        pause_on_recording_switch.set_active(config.general.pause_on_recording)
+        pause_on_recording_row.append(pause_on_recording_switch)
+        general_box.append(pause_on_recording_row)
+
         startup_service_installed = service_installed()
         startup_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         startup_label = Gtk.Label(label="Start on startup", xalign=0)
@@ -202,6 +213,7 @@ def run_setup() -> int:
                 config.general.paste_mode = paste_mode_from_auto_paste(
                     auto_paste_switch.get_active()
                 )
+                config.general.pause_on_recording = pause_on_recording_switch.get_active()
                 config.shortcut.binding = shortcut_entry.get_text().strip() or "<Control><Alt>space"
                 config.dictionary.terms = read_text_buffer(dictionary_buffer).strip()
                 save_config(config)
