@@ -18,6 +18,19 @@ def test_toggle_sends_command(capsys, monkeypatch):
     assert "recording" in out
 
 
+def test_cancel_sends_command(capsys, monkeypatch):
+    sent = {}
+
+    def fake_send(command, socket_path=None):
+        sent["cmd"] = command
+        return {"state": "idle", "last_error": ""}
+
+    monkeypatch.setattr(cli, "send_command", fake_send)
+    rc = cli.main(["cancel"])
+    assert rc == 0
+    assert sent["cmd"] == "cancel"
+
+
 def test_status_reports_daemon_not_running(capsys, monkeypatch):
     def fake_send(command, socket_path=None):
         raise ConnectionError("daemon not running")

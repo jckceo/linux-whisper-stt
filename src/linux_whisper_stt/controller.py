@@ -58,6 +58,18 @@ class Controller:
         if self.state == State.RECORDING:
             self._end_recording()
 
+    def cancel(self) -> None:
+        """Discard an in-progress recording without transcribing it."""
+        if self.state != State.RECORDING:
+            return
+        wav_path = self.recorder.stop()
+        # Resume whatever we paused (same ordering as a normal stop), then throw
+        # the captured audio away — no transcription, no history, no paste.
+        if self.media is not None:
+            self.media.resume()
+        wav_path.unlink(missing_ok=True)
+        self._set_state(State.IDLE, "Recording cancelled")
+
     def status(self) -> dict:
         return {"state": self.state.value, "last_error": self.last_error}
 

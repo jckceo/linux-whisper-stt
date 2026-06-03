@@ -143,6 +143,11 @@ Workflow:
 5. The result is copied to the clipboard.
 6. If auto-paste is enabled, `ydotool` presses the paste shortcut in the active app.
 
+To discard a recording you started by mistake, use `Cancel recording` in the
+tray menu, or run `linux-whisper-stt cancel` (bind it to a GNOME custom shortcut
+for a keyboard cancel). Cancelling stops the recording and throws the captured
+audio away without transcribing it.
+
 ## Tray Menu
 
 The tray menu includes:
@@ -151,6 +156,7 @@ The tray menu includes:
 | --- | --- |
 | Status | Shows idle, recording, transcribing, pasting, or error |
 | Start / Stop recording | Toggles dictation |
+| Cancel recording | Discards the in-progress recording without transcribing |
 | Transcribe file... | Chooses a local audio or video file to transcribe |
 | Settings... | Opens one Settings window |
 | Quit | Stops the tray process |
@@ -185,6 +191,7 @@ Use `.venv/bin/linux-whisper-stt <command>` from the repository:
 | `toggle` | Start or stop recording |
 | `start` | Start recording |
 | `stop` | Stop recording |
+| `cancel` | Discard an in-progress recording without transcribing |
 | `status` | Print daemon state and last error |
 | `setup` | Open the Settings window |
 | `transcribe-file <path>` | Queue a local audio or video file for transcription |
@@ -192,7 +199,7 @@ Use `.venv/bin/linux-whisper-stt <command>` from the repository:
 | `install-service` | Install and start the systemd user service |
 | `uninstall-service` | Stop and remove the systemd user service |
 
-`toggle`, `start`, `stop`, and `status` talk to the daemon over a Unix socket at:
+`toggle`, `start`, `stop`, `cancel`, and `status` talk to the daemon over a Unix socket at:
 
 ```text
 $XDG_RUNTIME_DIR/linux-whisper-stt.sock

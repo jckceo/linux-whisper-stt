@@ -179,6 +179,28 @@ def test_no_media_controller_is_safe():
     assert c.state == State.IDLE
 
 
+def test_cancel_discards_recording_without_transcribing():
+    media = FakeMedia()
+    c, recorder, transcription, output, indicator, sounds = make_controller(media=media)
+    c.toggle()  # start recording
+    assert c.state == State.RECORDING
+    c.cancel()
+    assert c.state == State.IDLE
+    assert recorder.stopped is True
+    assert transcription.calls == []
+    assert output.delivered == []
+    assert media.events == ["pause", "resume"]
+    assert indicator.states[-1] == (State.IDLE, "Recording cancelled")
+
+
+def test_cancel_when_not_recording_is_a_noop():
+    c, recorder, transcription, *_ = make_controller()
+    c.cancel()
+    assert c.state == State.IDLE
+    assert recorder.stopped is False
+    assert transcription.calls == []
+
+
 def test_status_dict():
     c, *_ = make_controller()
     assert c.status() == {"state": "idle", "last_error": ""}

@@ -96,6 +96,10 @@ class TrayIndicator:
         toggle_item.connect("activate", lambda *_: self.controller and self.controller.toggle())
         menu.append(toggle_item)
 
+        cancel_item = Gtk.MenuItem(label="Cancel recording")
+        cancel_item.connect("activate", lambda *_: self.controller and self.controller.cancel())
+        menu.append(cancel_item)
+
         file_item = Gtk.MenuItem(label="Transcribe file...")
         file_item.connect("activate", self._open_file_picker)
         menu.append(file_item)

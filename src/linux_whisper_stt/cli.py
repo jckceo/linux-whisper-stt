@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .ipc import send_command
 
-REMOTE_COMMANDS = {"toggle", "start", "stop", "status"}
+REMOTE_COMMANDS = {"toggle", "start", "stop", "status", "cancel"}
 
 
 def entrypoint() -> str:
@@ -86,6 +86,7 @@ def main(argv: list[str] | None = None) -> int:
         "toggle",
         "start",
         "stop",
+        "cancel",
         "status",
         "setup",
         "install-open-with",

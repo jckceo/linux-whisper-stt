@@ -276,3 +276,23 @@ def test_structured_unknown_command_returns_error():
     handler = make_ipc_handler(Controller(), lambda fn: fn())
 
     assert handler('{"command": "bogus"}') == {"error": "unknown command: bogus"}
+
+
+def test_cancel_command_invokes_controller_cancel():
+    class Controller:
+        def __init__(self):
+            self.cancelled = 0
+
+        def cancel(self):
+            self.cancelled += 1
+
+        def status(self):
+            return {"state": "idle"}
+
+    controller = Controller()
+    handler = make_ipc_handler(controller, lambda fn: fn())
+
+    result = handler("cancel")
+
+    assert controller.cancelled == 1
+    assert result == {"state": "idle"}

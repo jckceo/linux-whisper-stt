@@ -134,7 +134,7 @@ def make_ipc_handler(controller, idle_add, request_timeout: float = 5):
         structured = data.strip().startswith("{")
         payload = parse_message(data)
         command = payload["command"]
-        if command in ("toggle", "start", "stop"):
+        if command in ("toggle", "start", "stop", "cancel"):
             done = threading.Event()
 
             def apply():
@@ -145,6 +145,8 @@ def make_ipc_handler(controller, idle_add, request_timeout: float = 5):
                         controller.start()
                     elif command == "stop":
                         controller.stop()
+                    elif command == "cancel":
+                        controller.cancel()
                 finally:
                     done.set()
                 return False  # GLib one-shot idle callback
