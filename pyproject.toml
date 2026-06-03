@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "linux-whisper-stt"
-version = "0.2.0"
+version = "0.3.0"
 description = "Speech-to-text for Linux: global-shortcut dictation via OpenAI or local whisper.cpp"
 readme = "README.md"
 requires-python = ">=3.12"
