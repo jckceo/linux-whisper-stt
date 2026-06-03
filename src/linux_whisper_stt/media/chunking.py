@@ -163,6 +163,46 @@ def export_chunks(
     return paths
 
 
-def merge_transcripts(parts: list[str]) -> str:
+def merge_transcripts(parts: list[str], separator: str = "\n\n") -> str:
     cleaned = [part.strip() for part in parts if part and part.strip()]
-    return "\n\n".join(cleaned)
+    return separator.join(cleaned)
+
+
+def build_silencedetect_command(
+    source: Path, noise_db: int = 30, min_silence: float = 0.4
+) -> list[str]:
+    return [
+        "ffmpeg",
+        "-hide_banner",
+        "-nostats",
+        "-i",
+        str(source),
+        "-af",
+        f"silencedetect=noise=-{noise_db}dB:d={min_silence}",
+        "-f",
+        "null",
+        "-",
+    ]
+
+
+def detect_silences(
+    source: Path,
+    runner=subprocess.run,
+    noise_db: int = 30,
+    min_silence: float = 0.4,
+) -> list[tuple[float, float]]:
+    """Run ffmpeg silencedetect and return (start, end) silence intervals. [] on failure.
+
+    Failure includes a non-zero exit and the runner raising (e.g. ffmpeg not installed).
+    """
+    try:
+        proc = runner(
+            build_silencedetect_command(source, noise_db, min_silence),
+            capture_output=True,
+            text=True,
+        )
+    except Exception:
+        return []
+    if proc.returncode != 0:
+        return []
+    return parse_silencedetect(proc.stderr or "")

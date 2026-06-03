@@ -4,6 +4,8 @@ from linux_whisper_stt.media.chunking import (
     OPENAI_HARD_UPLOAD_LIMIT_BYTES,
     ChunkPlan,
     build_export_chunk_command,
+    build_silencedetect_command,
+    detect_silences,
     estimate_mp3_bytes,
     export_chunks,
     merge_transcripts,
@@ -192,6 +194,39 @@ def test_export_chunks_failure_uses_fallback_message_and_removes_outputs(tmp_pat
 
 def test_merge_transcripts_keeps_order_and_spacing():
     assert merge_transcripts([" uno ", "", "due\n", "tre"]) == "uno\n\ndue\n\ntre"
+
+
+def test_merge_transcripts_supports_custom_separator():
+    assert merge_transcripts([" uno ", "due", " tre "], separator=" ") == "uno due tre"
+
+
+def test_build_silencedetect_command():
+    cmd = build_silencedetect_command(Path("a.wav"), noise_db=30, min_silence=0.4)
+    assert cmd == [
+        "ffmpeg", "-hide_banner", "-nostats", "-i", "a.wav",
+        "-af", "silencedetect=noise=-30dB:d=0.4", "-f", "null", "-",
+    ]
+
+
+def test_detect_silences_parses_runner_stderr():
+    def runner(cmd, capture_output, text):
+        return Proc(returncode=0, stderr="silence_start: 60.0\nsilence_end: 61.0\n")
+
+    assert detect_silences(Path("a.wav"), runner=runner) == [(60.0, 61.0)]
+
+
+def test_detect_silences_returns_empty_on_failure():
+    def runner(cmd, capture_output, text):
+        return Proc(returncode=1, stderr="boom")
+
+    assert detect_silences(Path("a.wav"), runner=runner) == []
+
+
+def test_detect_silences_returns_empty_when_runner_raises():
+    def runner(cmd, capture_output, text):
+        raise FileNotFoundError("ffmpeg not installed")
+
+    assert detect_silences(Path("a.wav"), runner=runner) == []
 
 
 def test_parse_silencedetect_pairs_starts_and_ends():
