@@ -25,6 +25,7 @@ class ShortcutConfig:
 @dataclass
 class OpenAIConfig:
     model: str = "gpt-4o-mini-transcribe"
+    parallel_long_recordings: bool = True  # split long OpenAI dictations on silence + parallelize
 
 
 @dataclass
@@ -38,7 +39,7 @@ class LocalConfig:
 class AudioConfig:
     device: str = "default"
     samplerate: int = 16000
-    max_seconds: int = 300
+    max_seconds: int = 0  # 0 = no limit (unlimited recording)
 
 
 @dataclass

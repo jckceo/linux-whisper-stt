@@ -13,6 +13,8 @@ def test_defaults():
     assert c.openai.model == "gpt-4o-mini-transcribe"
     assert c.local.model == "small"
     assert c.audio.samplerate == 16000
+    assert c.audio.max_seconds == 0
+    assert c.openai.parallel_long_recordings is True
     assert c.dictionary.terms == ""
 
 
