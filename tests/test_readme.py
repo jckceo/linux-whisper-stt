@@ -72,6 +72,16 @@ def test_readme_documents_dictionary_glossary():
     assert "comma separated or one per line" in " ".join(engines.split())
 
 
+def test_readme_documents_one_line_bootstrap_install():
+    readme = (ROOT / "README.md").read_text()
+    quick = _section(readme, "## Quick install")
+    assert "curl -fsSL" in quick
+    # Pin the full raw URL incl. the branch: a future copy-edit that swaps `main`
+    # for a tag/SHA would silently break the one-liner, and this would catch it.
+    assert "raw.githubusercontent.com/jckceo/linux-whisper-stt/main/bootstrap.sh" in quick
+    assert "~/linux-whisper-stt" in quick
+
+
 def test_security_reporting_has_actionable_github_channel():
     security = (ROOT / "SECURITY.md").read_text()
     reporting = _section(security, "## Reporting Security Issues")

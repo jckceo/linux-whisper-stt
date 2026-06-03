@@ -34,6 +34,27 @@ The app expects:
 - `pw-record` for audio capture
 - Pause on Recording talks to MPRIS players over D-Bus through the GTK/GLib bindings already listed, so it needs no extra package
 
+## Quick install
+
+One command (Ubuntu/Debian + GNOME). It clones the app to `~/linux-whisper-stt`,
+interactively asks whether to enable auto-paste and offline transcription, then runs
+the installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jckceo/linux-whisper-stt/main/bootstrap.sh | bash
+```
+
+Prefer to read it before running:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jckceo/linux-whisper-stt/main/bootstrap.sh -o bootstrap.sh
+less bootstrap.sh
+bash bootstrap.sh
+```
+
+The steps below describe the manual route (clone, then `./install.sh`), which the
+one-liner runs for you.
+
 ## Install
 
 Clone the repository, then run the conservative base installer:
