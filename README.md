@@ -257,7 +257,7 @@ binary_path = ""
 [audio]
 device = "default"
 samplerate = 16000
-max_seconds = 300
+max_seconds = 0
 
 [history]
 enabled = true
@@ -266,6 +266,12 @@ dir = "~/.local/share/linux-whisper-stt/history"
 [dictionary]
 terms = ""
 ```
+
+`max_seconds = 0` means no recording length limit — record as long as you like. Set a
+positive number of seconds to cap recordings. Long OpenAI dictations (over ~90 seconds)
+are automatically split on silences (never mid-word) and transcribed in parallel, then
+joined in order; disable this with `parallel_long_recordings = false` under `[openai]`.
+This applies to the OpenAI engine only.
 
 Unknown keys are ignored. The config file is written with mode `0600`.
 

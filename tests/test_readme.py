@@ -89,3 +89,9 @@ def test_security_reporting_has_actionable_github_channel():
     assert "GitHub private vulnerability reporting" in reporting
     assert "GitHub Security Advisory" in reporting
     assert "public issue" in reporting
+
+
+def test_readme_documents_parallel_long_dictation():
+    readme = (ROOT / "README.md").read_text()
+    assert "max_seconds = 0" in readme
+    assert "parallel_long_recordings" in readme
