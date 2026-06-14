@@ -9,7 +9,7 @@ WITH_AUTOPASTE=0
 WITH_LOCAL_WHISPER=0
 BASE_PACKAGES=(
   python3.12 python3.12-venv
-  wl-clipboard ffmpeg pipewire-bin
+  wl-clipboard ffmpeg pipewire-bin libnotify-bin
   gir1.2-ayatanaappindicator3-0.1 gir1.2-gtk-4.0 gir1.2-adw-1
 )
 LOCAL_WHISPER_PACKAGES=(build-essential cmake git)

@@ -453,6 +453,13 @@ If you are not using the systemd service, quit the tray and restart it manually:
 
 This should no longer happen. The tray tracks the Settings process and reuses it while it is open.
 
+### No microphone connected
+
+If you start a recording with no microphone connected, the app shows a "No microphone detected"
+desktop notification and does not record. Detection looks for a PipeWire audio source (via
+`pw-dump`), so connect a microphone and try again. If detection is unavailable, recording
+proceeds as before.
+
 ## Development
 
 Run tests:

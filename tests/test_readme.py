@@ -95,3 +95,8 @@ def test_readme_documents_parallel_long_dictation():
     readme = (ROOT / "README.md").read_text()
     assert "max_seconds = 0" in readme
     assert "parallel_long_recordings" in readme
+
+
+def test_readme_documents_no_microphone_alert():
+    readme = (ROOT / "README.md").read_text()
+    assert "No microphone detected" in readme

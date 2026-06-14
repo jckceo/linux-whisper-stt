@@ -56,3 +56,7 @@ def test_install_script_registers_open_with_entry_after_editable_install():
     assert text.index(editable_install) < text.index(open_with_install)
     assert 'APPLICATIONS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"' in text
     assert 'update-desktop-database "$APPLICATIONS_DIR" || true' in text
+
+
+def test_install_script_includes_notification_package():
+    assert "libnotify-bin" in script_text()
