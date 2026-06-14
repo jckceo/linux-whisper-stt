@@ -86,7 +86,15 @@ def make_controller(**overrides):
     config = overrides.get("config", Config())
     media = overrides.get("media")
     c = Controller(
-        recorder, transcription, output, indicator, sounds, config, media=media
+        recorder,
+        transcription,
+        output,
+        indicator,
+        sounds,
+        config,
+        media=media,
+        input_check=overrides.get("input_check"),
+        on_no_input=overrides.get("on_no_input"),
     )
     return c, recorder, transcription, output, indicator, sounds
 
@@ -267,3 +275,40 @@ def test_transcribe_file_failed_event_sets_error_state(tmp_path):
     assert result == {"accepted": True, "state": "transcribing"}
     assert c.state == State.ERROR
     assert c.last_error == "decode failed"
+
+
+def test_recording_blocked_and_alerts_when_no_input_device():
+    alerts = []
+    c, recorder, transcription, output, indicator, sounds = make_controller(
+        input_check=lambda: False,
+        on_no_input=lambda: alerts.append("alert"),
+    )
+    c.toggle()  # IDLE -> would start recording
+    assert recorder.started is False
+    assert c.state == State.IDLE
+    assert alerts == ["alert"]
+    assert transcription.calls == []
+    # Nothing else happens on the blocked path: no start sound, no state change.
+    assert sounds.events == []
+    assert indicator.states == []
+
+
+def test_recording_proceeds_when_input_present():
+    c, recorder, *_ = make_controller(input_check=lambda: True)
+    c.toggle()
+    assert recorder.started is True
+    assert c.state == State.RECORDING
+
+
+def test_recording_proceeds_when_input_unknown():
+    c, recorder, *_ = make_controller(input_check=lambda: None)
+    c.toggle()
+    assert recorder.started is True
+    assert c.state == State.RECORDING
+
+
+def test_recording_proceeds_without_input_check():
+    c, recorder, *_ = make_controller()  # input_check defaults to None
+    c.toggle()
+    assert recorder.started is True
+    assert c.state == State.RECORDING

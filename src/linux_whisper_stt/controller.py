@@ -26,6 +26,8 @@ class Controller:
         history=None,
         file_jobs=None,
         media=None,
+        input_check=None,
+        on_no_input=None,
     ):
         self.recorder = recorder
         self.transcription = transcription
@@ -36,6 +38,8 @@ class Controller:
         self.history = history
         self.file_jobs = file_jobs
         self.media = media
+        self.input_check = input_check
+        self.on_no_input = on_no_input
         # default: run inline (deterministic for tests). Daemon injects a thread runner.
         self._run_async = run_async or (lambda fn: fn())
         self.state = State.IDLE
@@ -96,6 +100,12 @@ class Controller:
     # --- internals ---
 
     def _begin_recording(self) -> None:
+        if self.input_check is not None and self.input_check() is False:
+            # Confident there is no microphone: alert and do not record. `is False`
+            # (not just falsy) means an unknown probe result (None) still records.
+            if self.on_no_input is not None:
+                self.on_no_input()
+            return
         self.last_error = ""
         self.recorder.start()
         self._set_state(State.RECORDING)
