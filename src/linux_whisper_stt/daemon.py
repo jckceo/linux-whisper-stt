@@ -88,7 +88,9 @@ def build_controller(config, indicator, run_async, popup_fn=None):
         popup_fn=popup_fn or (lambda _event: None),
         progress_fn=report_job_progress,
     )
+    from .audio.devices import has_audio_input
     from .media.mpris import MprisController
+    from .notifications import send_notification
 
     media = MprisController()
     return Controller(
@@ -102,6 +104,11 @@ def build_controller(config, indicator, run_async, popup_fn=None):
         history=history,
         file_jobs=file_jobs,
         media=media,
+        input_check=has_audio_input,
+        on_no_input=lambda: send_notification(
+            "No microphone detected",
+            "linux-whisper-stt: connect a microphone, then try again.",
+        ),
     )
 
 

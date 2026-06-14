@@ -278,6 +278,32 @@ def test_structured_unknown_command_returns_error():
     assert handler('{"command": "bogus"}') == {"error": "unknown command: bogus"}
 
 
+def test_build_controller_wires_microphone_check(monkeypatch):
+    from linux_whisper_stt.audio.devices import has_audio_input
+
+    patch_build_controller_components(monkeypatch)
+    controller = build_controller(Config(), FakeIndicator(), lambda fn: fn())
+    assert controller.input_check is has_audio_input
+    assert callable(controller.on_no_input)
+
+
+def test_build_controller_on_no_input_fires_notification(monkeypatch):
+    import linux_whisper_stt.notifications
+
+    calls = []
+    monkeypatch.setattr(
+        linux_whisper_stt.notifications,
+        "send_notification",
+        lambda *args, **kwargs: calls.append(args),
+    )
+    patch_build_controller_components(monkeypatch)
+    controller = build_controller(Config(), FakeIndicator(), lambda fn: fn())
+
+    controller.on_no_input()
+
+    assert calls and calls[0][0] == "No microphone detected"
+
+
 def test_cancel_command_invokes_controller_cancel():
     class Controller:
         def __init__(self):
