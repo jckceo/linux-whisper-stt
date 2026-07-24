@@ -1,16 +1,49 @@
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import time
 
 
-def copy_to_clipboard(text: str, runner=subprocess.run) -> None:
-    runner(["wl-copy"], input=text, text=True, check=True)
+def copy_to_clipboard(
+    text: str,
+    runner=subprocess.run,
+    env: dict[str, str] | None = None,
+    which=shutil.which,
+) -> None:
+    runner(_copy_command(env or os.environ, which), input=text, text=True, check=True)
 
 
-def read_clipboard(runner=subprocess.run) -> str:
-    proc = runner(["wl-paste", "-n"], capture_output=True, text=True)
+def read_clipboard(
+    runner=subprocess.run,
+    env: dict[str, str] | None = None,
+    which=shutil.which,
+) -> str:
+    proc = runner(_read_command(env or os.environ, which), capture_output=True, text=True)
     return proc.stdout
+
+
+def _copy_command(env, which) -> list[str]:
+    if env.get("WAYLAND_DISPLAY"):
+        return ["wl-copy"]
+    if env.get("DISPLAY"):
+        if which("xclip"):
+            return ["xclip", "-selection", "clipboard"]
+        if which("xsel"):
+            return ["xsel", "--clipboard", "--input"]
+    return ["wl-copy"]
+
+
+def _read_command(env, which) -> list[str]:
+    if env.get("WAYLAND_DISPLAY"):
+        return ["wl-paste", "-n"]
+    if env.get("DISPLAY"):
+        if which("xclip"):
+            return ["xclip", "-selection", "clipboard", "-out"]
+        if which("xsel"):
+            return ["xsel", "--clipboard", "--output"]
+    return ["wl-paste", "-n"]
 
 
 def wait_for_clipboard(
